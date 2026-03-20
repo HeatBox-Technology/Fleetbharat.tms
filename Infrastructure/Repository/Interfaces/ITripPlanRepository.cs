@@ -1,0 +1,44 @@
+﻿using FleetBharat.TMSService.Application.DTOs;
+using System.Data;
+
+namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
+{
+    public interface ITripPlanRepository
+    {
+        Task<int> CreateTripPlanAsync(TripPlanRequestDTO request,
+            DateTime? travelDate,
+            int leadTime,
+            int eta,
+            IDbTransaction transaction);
+
+        Task InsertRouteDetailsAsync(
+        int planId,
+        IEnumerable<TripPlanRouteDetailsDTO> routeDetails,
+        IDbTransaction transaction);
+
+        Task CreateTransAndDetTripAsync(
+        int planId,
+        TripPlanRequestDTO request,
+        DateTime baseTimeline,
+        IDbTransaction transaction);
+
+        Task<(IEnumerable<dynamic> Items, int Total, int TotalActive)> GetAllTripPlansAsync
+            (int accountId, int page, int pageSize);
+
+        Task<bool> DeleteTripPlanAsync(int planId);
+
+        Task<bool> UpdateTripPlanAsync(
+        int planId,
+        TripPlanRequestDTO request,
+        DateTime? travelDate,
+        int leadTime,
+        int eta,
+        IDbTransaction transaction);
+
+        Task DeleteRouteDetailsByPlanIdAsync(int planId, IDbTransaction transaction);
+
+        Task<TripPlanByIdResponseDTO?> GetTripPlanByIdAsync(int planId);
+
+        Task<IEnumerable<TripPlanRouteDetailsDTO>> GetRouteDetailsByPlanIdAsync(int planId);
+    }
+}

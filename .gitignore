@@ -1,0 +1,9 @@
+
+bin/
+obj/
+.vs/
+.env
+*.user
+*.suo
+*.db
+appsettings.Development.json
