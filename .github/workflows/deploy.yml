@@ -46,6 +46,6 @@ jobs:
               -v /var/www/fleetbharat/uploads:/app/uploads \
               -e ASPNETCORE_ENVIRONMENT=Production \
               -e ASPNETCORE_URLS=http://+:8081 \
-              -e ConnectionStrings__Default="${{ secrets.PROD_CONN }}" \
+              -e ConnectionStrings__Default="${{ secrets.PROD_CONN_TMS }}" \
               --restart always \
               ${{ secrets.DOCKER_IMAGE_NAME_TMS }}:latest
