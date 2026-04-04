@@ -23,8 +23,11 @@ public class TripService : ITripService
 
     public async Task<ApiResponse<int>> CreateTripPlanAsync(TripPlanRequestDTO request)
     {
-        if (request.routeDetails == null || !request.routeDetails.Any())
-            return ApiResponse<int>.Fail("Route details are required.", 500);
+        // ✅ Step 1: Validate Request
+        var validationResult = ValidateRequest(request);
+        if (!validationResult.success)
+            return validationResult;
+
 
         using var connection = _dbConnectionFactory.CreateConnection();
         connection.Open();
@@ -33,13 +36,17 @@ public class TripService : ITripService
 
         try
         {
+            if (IsDynamicRouting(request.routingModel))
+            {
+                //await CreateGeofencesAndMapAsync(request, transaction);
+            }
+
             int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
             int totalETA = request.routeDetails.Sum(x => x.rta);
 
             DateTime? parsedTravelDate = null;
 
-            if (request.tripType.Equals("fixed", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(request.travelDate))
+            if (IsOneTime(request.frequency))
             {
                 DateTime.TryParseExact(
                     request.travelDate,
@@ -63,7 +70,7 @@ public class TripService : ITripService
                 request.routeDetails,
                 transaction);
 
-            if (request.tripType.Equals("fixed", StringComparison.OrdinalIgnoreCase))
+            if (IsOneTime(request.frequency))
             {
                 // Parse start date/time
                 var datePart = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.UtcNow;
@@ -83,6 +90,108 @@ public class TripService : ITripService
             return ApiResponse<int>.Fail($"Error saving trip plan: {ex.Message}", 500);
         }
     }
+
+    #region Validation
+
+    private ApiResponse<int> ValidateRequest(TripPlanRequestDTO request)
+    {
+        if (request == null)
+            return ApiResponse<int>.Fail("Request cannot be null", 400);
+
+        if (request.routeDetails == null || !request.routeDetails.Any())
+            return ApiResponse<int>.Fail("Route details are required.", 400);
+
+        if (string.IsNullOrWhiteSpace(request.frequency))
+            return ApiResponse<int>.Fail("Frequency is required.", 400);
+
+        if (!IsValidFrequency(request.frequency))
+            return ApiResponse<int>.Fail("Invalid frequency value.", 400);
+
+        if (string.IsNullOrWhiteSpace(request.etd))
+            return ApiResponse<int>.Fail("ETD is required.", 400);
+
+        if (!TimeSpan.TryParse(request.etd, out _))
+            return ApiResponse<int>.Fail("Invalid ETD format (HH:mm expected).", 400);
+
+        // ✅ One-Time Validation
+        if (IsOneTime(request.frequency))
+        {
+            if (string.IsNullOrWhiteSpace(request.travelDate))
+                return ApiResponse<int>.Fail("Travel date is required for one-time trips.", 400);
+
+            if (!DateTime.TryParseExact(request.travelDate, "dd/MM/yyyy",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            {
+                return ApiResponse<int>.Fail("Invalid travel date format. Use dd/MM/yyyy", 400);
+            }
+        }
+
+        // ✅ Recurring Validation
+        if (IsRecurring(request.frequency))
+        {
+            if (string.IsNullOrWhiteSpace(request.weekDays))
+                return ApiResponse<int>.Fail("WeekDays required for recurring trips.", 400);
+        }
+
+        // ✅ Fleet Validation
+        if (IsInternalFleet(request.fleetSource))
+        {
+            if (request.vehicleId == 0)
+                return ApiResponse<int>.Fail("VehicleId required for internal fleet.", 400);
+        }
+        else if (IsExternalFleet(request.fleetSource))
+        {
+            if (string.IsNullOrWhiteSpace(request.vehicleNumber))
+                return ApiResponse<int>.Fail("Vehicle number required for external fleet.", 400);
+        }
+
+        if (IsDynamicRouting(request.routingModel))
+        {
+            foreach (var route in request.routeDetails)
+            {
+                if (string.IsNullOrWhiteSpace(route.fromGeoName) ||
+                    string.IsNullOrWhiteSpace(route.fromLatitude) ||
+                    string.IsNullOrWhiteSpace(route.fromLongitude))
+                {
+                    return ApiResponse<int>.Fail("Invalid FROM geofence data for dynamic routing", 400);
+                }
+
+                if (string.IsNullOrWhiteSpace(route.toGeoName) ||
+                    string.IsNullOrWhiteSpace(route.toLatitude) ||
+                    string.IsNullOrWhiteSpace(route.toLongitude))
+                {
+                    return ApiResponse<int>.Fail("Invalid TO geofence data for dynamic routing", 400);
+                }
+            }
+        }
+
+        return ApiResponse<int>.Ok(0);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private bool IsOneTime(string frequency) =>
+        frequency.Equals("ONE-TIME", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsRecurring(string frequency) =>
+        frequency.Equals("RECURRING", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsValidFrequency(string frequency) =>
+        IsOneTime(frequency) || IsRecurring(frequency);
+
+    private bool IsInternalFleet(string fleetSource) =>
+        fleetSource.Equals("INTERNAL", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsExternalFleet(string fleetSource) =>
+        fleetSource.Equals("EXTERNAL", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsDynamicRouting(string routingModel) =>
+        routingModel.Equals("DYNAMIC", StringComparison.OrdinalIgnoreCase);
+
+
+    #endregion
 
     public async Task<TripPlanListUiResponseDto> GetTripPlanListAsync(int accountId, int page = 1, int pageSize = 20)
     {
@@ -179,7 +288,7 @@ public class TripService : ITripService
             int totalETA = request.routeDetails.Sum(x => x.rta);
 
             DateTime? parsedTravelDate = null;
-            if (request.tripType.Equals("fixed", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(request.travelDate))
+            if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(request.travelDate))
             {
                 if (DateTime.TryParseExact(request.travelDate, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
                     parsedTravelDate = date;
@@ -196,7 +305,7 @@ public class TripService : ITripService
             await _tripPlanRepository.DeleteRouteDetailsByPlanIdAsync(request.planId, transaction);
             await _tripPlanRepository.InsertRouteDetailsAsync(request.planId, request.routeDetails, transaction);
 
-            if (request.tripType.Equals("fixed", StringComparison.OrdinalIgnoreCase))
+            if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase))
             {
                 var datePart = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.UtcNow;
                 TimeSpan.TryParse(request.etd, out var timePart);

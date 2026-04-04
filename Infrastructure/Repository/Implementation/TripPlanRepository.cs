@@ -49,7 +49,11 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 is_gps,
                 primary_device,
                 consignee,
-                consignor
+                consignor,
+                secondary_device,
+                vehicle_category,
+                routing_model,
+                route_path
             )
             VALUES
             (
@@ -74,7 +78,11 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @IsGPSTrip,
                 @PrimaryDevice,
                 @Consignee,
-                @Consignor
+                @Consignor,
+                @SecondaryDevice,
+                @VehicleCategory,
+                @RoutingModel,
+                @RoutePath
             )
             RETURNING plan_id;
         """;
@@ -86,7 +94,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.accountId,
                     request.driverId,
                     request.vehicleId,
-                    request.tripType,
+                    TripType=request.frequency,
                     TravelDate = travelDate,
                     ETD = request.etd,
                     LeadTime = leadTime,
@@ -104,7 +112,11 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.isGPSTrip,
                     request.primaryDevice,
                     request.Consignee,
-                    request.Consignor
+                    request.Consignor,
+                    request.secondaryDevice,
+                    request.vehicleCategory,
+                    request.routingModel,
+                    request.routePath
                 },
                 transaction);
 
@@ -195,7 +207,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.accountId,
                 request.driverId,
                 request.vehicleId,
-                request.tripType,
+                TripType=request.frequency,
                 TravelDate = currentTimeline.Date,
                 ETD = currentTimeline,
                 RTA = finalRta,
@@ -368,7 +380,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 AccountId = request.accountId,
                 DriverId = request.driverId,
                 VehicleId = request.vehicleId,
-                TripType = request.tripType,
+                TripType = request.frequency,
                 TravelDate = travelDate,
                 ETD = request.etd,
                 LeadTime = leadTime,
