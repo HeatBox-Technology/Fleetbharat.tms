@@ -329,8 +329,12 @@ public class TripService : ITripService
 
     public async Task<ApiResponse<bool>> UpdateTripPlanAsync(TripPlanRequestDTO request)
     {
+        var validationResult = ValidateRequest(request);
+        if (!validationResult.success)
+            return ApiResponse<bool>.Fail(validationResult.message, 400);
+
         if (request.routeDetails == null || !request.routeDetails.Any())
-            throw new BadHttpRequestException("Route details are required.");
+            return ApiResponse<bool>.Fail("Route details are required.", 400);
 
         using var connection = _dbConnectionFactory.CreateConnection();
         connection.Open();
@@ -338,6 +342,12 @@ public class TripService : ITripService
 
         try
         {
+            //Dynamic routing
+            if (IsDynamicRouting(request.routingModel))
+            {
+                await CreateGeofencesAndMapAsync(request, transaction);
+            }
+
             // 1. Calculate Totals
             int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
             int totalETA = request.routeDetails.Sum(x => x.rta);

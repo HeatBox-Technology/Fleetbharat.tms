@@ -181,7 +181,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             route_id, created_datetime, is_active,
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id, created_by,
-            is_elock, is_gps, primary_device, consignee, consignor
+            is_elock, is_gps, primary_device, consignee, consignor,
+            secondary_device, vehicle_category, routing_model, route_path
             )
             VALUES
             (
@@ -190,7 +191,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             @RouteId, @CreatedDatetime, true,
             @driverName, @vehicleNumber, @driverPhone,
             @StartGeoId, @EndGeoId, @CreatedBy,
-            @IsElockTrip, @IsGPSTrip, @PrimaryDevice, @Consignee, @Consignor
+            @IsElockTrip, @IsGPSTrip, @PrimaryDevice, @Consignee, @Consignor,
+            @SecondaryDevice, @VehicleCategory, @RoutingModel, @RoutePath
             )
             RETURNING trip_id;
             """;
@@ -224,7 +226,11 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.isGPSTrip,
                 request.primaryDevice,
                 request.Consignee,
-                request.Consignor
+                request.Consignor,
+                request.secondaryDevice,
+                request.vehicleCategory,
+                request.routingModel,
+                request.routePath
             }, transaction);
 
             // 2. Insert into Det_Trip (Details)
@@ -370,7 +376,12 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 is_gps = @IsGPSTrip,
                 primary_device = @PrimaryDevice,
                 consignee = @Consignee,
-                consignor = @Consignor
+                consignor = @Consignor,
+                secondary_device=@SecondaryDevice,
+                vehicle_category=@VehicleCategory,
+                routing_model=@RoutingModel,
+                route_path=@RoutePath
+
             WHERE plan_id = @PlanId;
             """;
 
@@ -396,7 +407,11 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.isGPSTrip,
                 request.primaryDevice,
                 request.Consignee,
-                request.Consignor
+                request.Consignor,
+                request.secondaryDevice,
+                request.vehicleCategory,
+                request.routingModel,
+                request.routePath
             }, transaction);
 
             return rowsAffected > 0;
