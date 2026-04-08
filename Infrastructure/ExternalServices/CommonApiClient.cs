@@ -84,5 +84,51 @@ namespace Infrastructure.ExternalServices
 
             return envelope?.data ?? new List<CommonResponseDTO>();
         }
+
+        private async Task<T> SendAsync<T>(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken = default)
+        {
+            using var response = await _http.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new Exception($"API Error: {response.StatusCode}, {error}");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+            var result = await JsonSerializer.DeserializeAsync<T>(
+                stream,
+                _jsonOptions,
+                cancellationToken);
+
+            if (result == null)
+                throw new Exception("API returned null response");
+
+            return result;
+        }
+
+        public async Task<int> CreateGeofenceAsync(GeofenceRequestDTO dto, CancellationToken ct = default)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/geofences/create-by-location")
+            {
+                Content = JsonContent.Create(dto)
+            };
+
+            var response = await SendAsync<CommonApiSingleResponse<GeofenceResponseDTO>>(request, ct);
+
+            if (!response.success)
+                throw new Exception($"Geofence API failed: {response.message}");
+
+            if (response.data == null || response.data.geofenceId == 0)
+                throw new Exception("Invalid geofence response");
+
+            return response.data.geofenceId;
+        }
     }
 }

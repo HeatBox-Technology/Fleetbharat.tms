@@ -5,6 +5,7 @@ using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
 using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Infrastructure.ExternalServices;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using System.Globalization;
 
 public class TripService : ITripService
@@ -38,7 +39,7 @@ public class TripService : ITripService
         {
             if (IsDynamicRouting(request.routingModel))
             {
-                //await CreateGeofencesAndMapAsync(request, transaction);
+                await CreateGeofencesAndMapAsync(request, transaction);
             }
 
             int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
@@ -192,6 +193,60 @@ public class TripService : ITripService
 
 
     #endregion
+
+    private async Task CreateGeofencesAndMapAsync(
+    TripPlanRequestDTO request,
+    IDbTransaction transaction)
+    {
+        int maxSequence = request.routeDetails.Max(x => x.sequence);
+        foreach (var route in request.routeDetails)
+        {
+            //Create FROM geofence
+            if (route.fromGeoId == 0)
+            {
+                var fromGeoRequest = new GeofenceRequestDTO
+                {
+                    displayName= route.fromGeoName,
+                    address = route.fromGeoName,
+                    latitude = route.fromLatitude,
+                    longitude = route.fromLongitude,
+                    accountId = request.accountId,
+                    createdBy=0
+                };
+
+                int fromGeoId = await _commonApi.CreateGeofenceAsync(fromGeoRequest);
+
+                route.fromGeoId = fromGeoId;
+                if (route.sequence == 1)
+                {
+                    request.startGeoId = fromGeoId;
+                }
+            }
+
+            //Create TO geofence
+            if (route.toGeoId == 0)
+            {
+                var toGeoRequest = new GeofenceRequestDTO
+                {
+                    displayName= route.toGeoName,
+                    address = route.toGeoName,
+                    latitude = route.toLatitude,
+                    longitude = route.toLongitude,
+                    accountId = request.accountId,
+                    createdBy=0
+                };
+
+                int toGeoId = await _commonApi.CreateGeofenceAsync(toGeoRequest);
+
+                route.toGeoId = toGeoId;
+
+                if (route.sequence == maxSequence)
+                {
+                    request.endGeoId = route.toGeoId;
+                }
+            }
+        }
+    }
 
     public async Task<TripPlanListUiResponseDto> GetTripPlanListAsync(int accountId, int page = 1, int pageSize = 20)
     {
