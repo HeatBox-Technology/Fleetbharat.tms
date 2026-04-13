@@ -7,6 +7,7 @@ using Infrastructure.ExternalServices;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 
 public class TripService : ITripService
 {
@@ -42,8 +43,8 @@ public class TripService : ITripService
                 await CreateGeofencesAndMapAsync(request, transaction);
             }
 
-            int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
-            int totalETA = request.routeDetails.Sum(x => x.rta);
+            //int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
+            int totalETA = request.routeDetails.Sum(x => x.googleSuggestedTime);
 
             DateTime? parsedTravelDate = null;
 
@@ -59,17 +60,42 @@ public class TripService : ITripService
                 parsedTravelDate = date;
             }
 
+            // Convert Points → Segments
+            var segments = ConvertToRouteDetails(request);
+
+            var ordered = request.routeDetails
+                .OrderBy(x => x.sequence)
+                .ToList();
+            // Set Start & End Geo
+            request.startGeoId = ordered
+                .First().geofenceId;
+
+            request.endGeoId = ordered.Last().geofenceId;
+
+            var plannedEntryTime = ordered.First().plannedExitTime;  // ETD
+            var plannedExitTime = ordered.Last().plannedEntryTime;  // final arrival
+
+            //Serialize Secondary Devices (JSONB)
+            var secondaryDevicesJson = request.secondaryDevice?.Any() == true
+                ? JsonSerializer.Serialize(request.secondaryDevice)
+                : "[]";
+            
+
             int planId = await _tripPlanRepository.CreateTripPlanAsync(
                 request,
                 parsedTravelDate,
-                totalLeadTime,
                 totalETA,
+                secondaryDevicesJson,
+                plannedEntryTime,
+                plannedExitTime,
                 transaction);
 
             await _tripPlanRepository.InsertRouteDetailsAsync(
                 planId,
-                request.routeDetails,
+                segments,
                 transaction);
+
+            await _tripPlanRepository.InsertGeofencePointsAsync(planId, request.routeDetails, transaction);
 
             if (IsOneTime(request.frequency))
             {
@@ -78,7 +104,7 @@ public class TripService : ITripService
                 TimeSpan.TryParse(request.etd, out var timePart);
                 DateTime baseTimeline = datePart.Date.Add(timePart);
 
-                await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, baseTimeline, transaction);
+                //await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, baseTimeline, transaction);
             }
 
             transaction.Commit();
@@ -108,11 +134,6 @@ public class TripService : ITripService
         if (!IsValidFrequency(request.frequency))
             return ApiResponse<int>.Fail("Invalid frequency value.", 400);
 
-        if (string.IsNullOrWhiteSpace(request.etd))
-            return ApiResponse<int>.Fail("ETD is required.", 400);
-
-        if (!TimeSpan.TryParse(request.etd, out _))
-            return ApiResponse<int>.Fail("Invalid ETD format (HH:mm expected).", 400);
 
         // ✅ One-Time Validation
         if (IsOneTime(request.frequency))
@@ -150,19 +171,12 @@ public class TripService : ITripService
         {
             foreach (var route in request.routeDetails)
             {
-                if (string.IsNullOrWhiteSpace(route.fromGeoName) ||
-                    string.IsNullOrWhiteSpace(route.fromLatitude) ||
-                    string.IsNullOrWhiteSpace(route.fromLongitude))
+                if (string.IsNullOrWhiteSpace(route.geofenceAddress) ||
+                    string.IsNullOrWhiteSpace(route.geofenceCenterLatitude) ||
+                    string.IsNullOrWhiteSpace(route.geofenceCenterLongitude))
                 {
-                    return ApiResponse<int>.Fail("Invalid FROM geofence data for dynamic routing", 400);
-                }
-
-                if (string.IsNullOrWhiteSpace(route.toGeoName) ||
-                    string.IsNullOrWhiteSpace(route.toLatitude) ||
-                    string.IsNullOrWhiteSpace(route.toLongitude))
-                {
-                    return ApiResponse<int>.Fail("Invalid TO geofence data for dynamic routing", 400);
-                }
+                    return ApiResponse<int>.Fail("Invalid geofence data for dynamic routing", 400);
+                }    
             }
         }
 
@@ -201,51 +215,170 @@ public class TripService : ITripService
         int maxSequence = request.routeDetails.Max(x => x.sequence);
         foreach (var route in request.routeDetails)
         {
-            //Create FROM geofence
-            if (route.fromGeoId == 0)
+            //Create geofence
+            if (route.geofenceId == 0)
             {
                 var fromGeoRequest = new GeofenceRequestDTO
                 {
-                    displayName= route.fromGeoName,
-                    address = route.fromGeoName,
-                    latitude = route.fromLatitude,
-                    longitude = route.fromLongitude,
+                    displayName= route.geofenceAddress,
+                    address = route.geofenceAddress,
+                    latitude = route.geofenceCenterLatitude,
+                    longitude = route.geofenceCenterLongitude,
                     accountId = request.accountId,
                     createdBy=0
                 };
 
                 int fromGeoId = await _commonApi.CreateGeofenceAsync(fromGeoRequest);
 
-                route.fromGeoId = fromGeoId;
                 if (route.sequence == 1)
                 {
                     request.startGeoId = fromGeoId;
                 }
-            }
-
-            //Create TO geofence
-            if (route.toGeoId == 0)
-            {
-                var toGeoRequest = new GeofenceRequestDTO
-                {
-                    displayName= route.toGeoName,
-                    address = route.toGeoName,
-                    latitude = route.toLatitude,
-                    longitude = route.toLongitude,
-                    accountId = request.accountId,
-                    createdBy=0
-                };
-
-                int toGeoId = await _commonApi.CreateGeofenceAsync(toGeoRequest);
-
-                route.toGeoId = toGeoId;
 
                 if (route.sequence == maxSequence)
                 {
-                    request.endGeoId = route.toGeoId;
+                    request.endGeoId = fromGeoId;
                 }
             }
+
+            
         }
+    }
+
+    private List<TripPlanRouteDetailsDTO> ConvertToRouteDetails(TripPlanRequestDTO request)
+    {
+        var ordered = request.routeDetails
+            .OrderBy(x => x.sequence)
+            .ToList();
+
+        if (!ordered.Any())
+            throw new Exception("Route details cannot be empty");
+
+        var result = new List<TripPlanRouteDetailsDTO>();
+
+        bool isOneTime = IsOneTime(request.frequency);
+
+        DateTime baseDate = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.Today;
+
+        // ✅ FIX: Base time = first stop exit time (ETD)
+        DateTime baseTime = ParsePlannedTime(
+            ordered.First().plannedExitTime,
+            isOneTime,
+            baseDate);
+
+        int cumulativeGoogleTime = 0;
+
+        for (int i = 0; i < ordered.Count - 1; i++)
+        {
+            var current = ordered[i];
+            var next = ordered[i + 1];
+
+            int leadTime = 0;
+            int segmentRta = 0;
+
+            if (isOneTime)
+            {
+                var currentEntry = ParsePlannedTime(current.plannedEntryTime, true, baseDate);
+                var currentExit = ParsePlannedTime(current.plannedExitTime, true, baseDate);
+                var nextEntry = ParsePlannedTime(next.plannedEntryTime, true, baseDate);
+
+                if (currentExit < currentEntry)
+                    currentExit = currentExit.AddDays(1);
+
+                if (nextEntry < currentExit)
+                    nextEntry = nextEntry.AddDays(1);
+
+                leadTime = (int)(currentExit - currentEntry).TotalMinutes;
+                if (leadTime < 0) leadTime = 0;
+
+                segmentRta = (int)(nextEntry - currentExit).TotalMinutes;
+                if (segmentRta < 0) segmentRta = 0;
+            }
+            else
+            {
+                // ✅ RECURRING → use google suggested time
+                leadTime = 0;
+
+                segmentRta = next.googleSuggestedTime;
+            }
+
+            result.Add(new TripPlanRouteDetailsDTO
+            {
+                fromGeoId = current.geofenceId,
+                toGeoId = next.geofenceId,
+                sequence = i + 1,
+
+                distance = next.distance ?? "0",
+
+                leadTime = leadTime,
+                rta = segmentRta,
+
+                fromExitTime = current.plannedExitTime,
+                toEntryTime = next.plannedEntryTime,
+
+                googleSuggestedTime = next.googleSuggestedTime
+            });
+        }
+
+        return result;
+    }
+
+    private DateTime ParsePlannedTime(
+    string? timeValue,
+    bool isOneTime,
+    DateTime baseDate)
+    {
+        if (string.IsNullOrWhiteSpace(timeValue))
+            return DateTime.MinValue;
+
+        // ✅ ONE-TIME → Full DateTime expected
+        if (isOneTime)
+        {
+            // Try normal parsing first
+            if (DateTime.TryParse(timeValue, out var dateTime))
+                return dateTime;
+
+            // Try custom formats if needed
+            string[] formats =
+            {
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ss"
+        };
+
+            if (DateTime.TryParseExact(
+                    timeValue,
+                    formats,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var parsedDateTime))
+            {
+                return parsedDateTime;
+            }
+        }
+        else
+        {
+            // ✅ RECURRING → Only Time expected
+            if (TimeSpan.TryParse(timeValue, out var time))
+            {
+                return baseDate.Date.Add(time);
+            }
+
+            // Optional: handle HH:mm:ss manually
+            if (DateTime.TryParseExact(
+                    timeValue,
+                    new[] { "HH:mm", "HH:mm:ss" },
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var parsedTime))
+            {
+                return baseDate.Date.Add(parsedTime.TimeOfDay);
+            }
+        }
+
+        // ❌ Fallback
+        return DateTime.MinValue;
     }
 
     public async Task<TripPlanListUiResponseDto> GetTripPlanListAsync(int accountId, int page = 1, int pageSize = 20)
@@ -349,8 +482,10 @@ public class TripService : ITripService
             }
 
             // 1. Calculate Totals
-            int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
-            int totalETA = request.routeDetails.Sum(x => x.rta);
+            //int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
+            //int totalETA = request.routeDetails.Sum(x => x.rta);
+            int totalLeadTime = 0;
+            int totalETA = 0;
 
             DateTime? parsedTravelDate = null;
             if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(request.travelDate))
@@ -368,7 +503,7 @@ public class TripService : ITripService
 
             // 3. Clear old Route Details and Insert New Ones
             await _tripPlanRepository.DeleteRouteDetailsByPlanIdAsync(request.planId, transaction);
-            await _tripPlanRepository.InsertRouteDetailsAsync(request.planId, request.routeDetails, transaction);
+            //await _tripPlanRepository.InsertRouteDetailsAsync(request.planId, request.routeDetails, transaction);
 
             if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase))
             {

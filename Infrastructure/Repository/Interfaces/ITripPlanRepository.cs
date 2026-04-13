@@ -7,14 +7,22 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
     {
         Task<int> CreateTripPlanAsync(TripPlanRequestDTO request,
             DateTime? travelDate,
-            int leadTime,
             int eta,
+            string secondaryDevicesJson,
+            string plannedEntryTime,
+            string plannedExitTime,
             IDbTransaction transaction);
 
         Task InsertRouteDetailsAsync(
         int planId,
         IEnumerable<TripPlanRouteDetailsDTO> routeDetails,
         IDbTransaction transaction);
+
+        Task InsertGeofencePointsAsync(
+        int planId,
+        List<TripPlanGeofenceRouteDetailsDTO> geofenceDetails,
+        IDbTransaction transaction);
+        
 
         Task CreateTransAndDetTripAsync(
         int planId,

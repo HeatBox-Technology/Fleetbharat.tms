@@ -12,7 +12,6 @@
         public string? vehicleNumber { get; set; }
         public string frequency { get; set; } //one-time/recurring
         public string? travelDate { get; set; }
-        public string etd { get; set; }
         public string routingModel { get; set; } //standard/dynamic
         public int routeId { get; set; }
         public string? routePath { get; set; }
@@ -23,10 +22,10 @@
         public bool isElockTrip { get; set; }
         public bool isGPSTrip { get; set; }
         public string? primaryDevice { get; set; }
-        public string? secondaryDevice { get; set; }
+        public List<string>? secondaryDevice { get; set; }
         public string? vehicleCategory { get; set; }
         public int? Consignee { get; set; }
         public int? Consignor { get; set; }
-        public List<TripPlanRouteDetailsDTO> routeDetails { get; set; }
+        public List<TripPlanGeofenceRouteDetailsDTO> routeDetails { get; set; }
     }
 }

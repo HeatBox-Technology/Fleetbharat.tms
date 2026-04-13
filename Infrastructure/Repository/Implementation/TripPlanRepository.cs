@@ -5,6 +5,7 @@ using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Microsoft.AspNetCore.Http.HttpResults;
 using System.Data;
 using System.Data.Common;
+using System.Text.Json;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
@@ -21,10 +22,14 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
         public async Task<int> CreateTripPlanAsync(
             TripPlanRequestDTO request,
             DateTime? travelDate,
-            int leadTime,
             int eta,
+            string secondaryDevicesJson,
+            string plannedEntryTime,
+            string plannedExitTime,
             IDbTransaction transaction)
         {
+            
+
             string sql = """
             INSERT INTO "TMS"."Trip_Plan"
             (
@@ -33,9 +38,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 vehicle_id,
                 trip_type,
                 travel_date,
-                "ETD",
-                lead_time,
-                "ETA",
                 route_id,
                 created_datetime,
                 start_geo_id,
@@ -50,10 +52,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 primary_device,
                 consignee,
                 consignor,
-                secondary_device,
+                secondary_devices,
                 vehicle_category,
                 routing_model,
-                route_path
+                route_path,
+                google_suggested_time,
+                planned_start_time,
+                planned_end_time
             )
             VALUES
             (
@@ -62,9 +67,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @VehicleId,
                 @TripType,
                 @TravelDate,
-                @ETD,
-                @LeadTime,
-                @ETA,
                 @RouteId,
                 @CreatedDatetime,
                 @StartGeoId,
@@ -79,10 +81,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @PrimaryDevice,
                 @Consignee,
                 @Consignor,
-                @SecondaryDevice,
+                @SecondaryDevice::jsonb,
                 @VehicleCategory,
                 @RoutingModel,
-                @RoutePath
+                @RoutePath,
+                @Eta,
+                @PlannedEntryTime,
+                @PlannedExitTime
             )
             RETURNING plan_id;
         """;
@@ -96,9 +101,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.vehicleId,
                     TripType=request.frequency,
                     TravelDate = travelDate,
-                    ETD = request.etd,
-                    LeadTime = leadTime,
-                    ETA = eta,
                     request.routeId,
                     CreatedDatetime = DateTime.UtcNow,
                     request.startGeoId,
@@ -113,10 +115,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.primaryDevice,
                     request.Consignee,
                     request.Consignor,
-                    request.secondaryDevice,
+                    SecondaryDevice=secondaryDevicesJson,
                     request.vehicleCategory,
                     request.routingModel,
-                    request.routePath
+                    request.routePath,
+                    eta,
+                    plannedEntryTime,
+                    plannedExitTime
                 },
                 transaction);
 
@@ -137,7 +142,10 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 sequence,
                 distance,
                 lead_time,
-                "RTA"
+                "RTA",
+                google_suggested_time,
+                from_exit_time,
+                to_entry_time
             )
             VALUES
             (
@@ -147,7 +155,10 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @Sequence,
                 @Distance,
                 @LeadTime,
-                @RTA
+                @RTA,
+                @GoogleSuggestedTime,
+                @FromExitTime,
+                @ToEntryTime
             );
         """;
 
@@ -159,10 +170,90 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 Sequence = r.sequence,
                 Distance = r.distance,
                 LeadTime = r.leadTime,
-                RTA = r.rta
+                RTA = r.rta,
+                GoogleSuggestedTime=r.googleSuggestedTime,
+                FromExitTime = r.fromExitTime, // next stop entry
+                ToEntryTime = r.toEntryTime    // current stop exit
             });
 
             await transaction.Connection!.ExecuteAsync(sql, routeParams, transaction);
+        }
+
+
+        public async Task InsertGeofencePointsAsync(
+        int planId,
+        List<TripPlanGeofenceRouteDetailsDTO> geofenceDetails,
+        IDbTransaction transaction)
+        {
+            string sql = """
+            INSERT INTO "TMS"."Trip_Plan_Geofence_Details"
+            (
+                plan_id,
+                geofence_id,
+                geofence_type,
+                point_type,
+                geofence_address,
+                geo_center_latitude,
+                geo_center_longitude,
+                geo_radius,
+                sequence,
+                planned_entry_time,
+                planned_exit_time,
+                google_suggested_time,
+                distance,
+                geofence_coordinates
+            )
+            VALUES
+            (
+                @PlanId,
+                @GeoId,
+                @GeoType,
+                @PoinType,
+                @GeoAddress,
+                @GeoCenterLat,
+                @GeoCenterLong,
+                @GeoRadius,
+                @Sequence,
+                @PlannedEntryTime,
+                @PlannedExitTime,
+                @GoogleSuggestedTime,
+                @Distance,
+                @geoJson::jsonb
+            );
+            """;
+
+            var ordered = geofenceDetails
+                .OrderBy(x => x.sequence)
+                .ToList();
+
+            var geofenceParams = ordered.Select(x =>
+            {
+                return new
+                {
+                    PlanId = planId,
+                    GeoId = x.geofenceId,
+                    GeoType=x.geofenceType,
+                    PoinType=x.pointType,
+                    GeoAddress=x.geofenceAddress,
+                    GeoCenterLat=x.geofenceCenterLatitude,
+                    GeoCenterLong=x.geofenceCenterLongitude,
+                    GeoRadius=x.geofenceRadius,
+                    Sequence = x.sequence,
+                    PlannedEntryTime = x.plannedEntryTime,
+                    PlannedExitTime = x.plannedExitTime,
+                    GoogleSuggestedTime = x.googleSuggestedTime,
+                    Distance=x.distance,
+                    geoJson = x.geofenceDetails?.Any() == true
+                    ? JsonSerializer.Serialize(x.geofenceDetails)
+                    : "[]"
+
+            };
+            });
+
+            await transaction.Connection!.ExecuteAsync(
+                sql,
+                geofenceParams,
+                transaction);
         }
 
 
@@ -200,9 +291,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             // We calculate the final RTA after processing details, but for the insert 
             // we'll update it or calculate it upfront. Let's calculate the timeline.
             DateTime currentTimeline = DateTime.SpecifyKind(baseTimeline, DateTimeKind.Utc);
-            int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
-            int totalRtaMins = request.routeDetails.Sum(x => x.rta);
-            DateTime finalRta = currentTimeline.AddMinutes(totalRtaMins + totalLeadTime);
+            int totalRtaMins = request.routeDetails.Sum(x => x.googleSuggestedTime);
+            DateTime finalRta = currentTimeline.AddMinutes(totalRtaMins);
 
             int transTripId = await transaction.Connection.ExecuteScalarAsync<int>(transSql, new
             {
@@ -213,7 +303,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 TravelDate = currentTimeline.Date,
                 ETD = currentTimeline,
                 RTA = finalRta,
-                TotalLeadTime = totalLeadTime,
+                //TotalLeadTime = totalLeadTime,
                 request.routeId,
                 CreatedDatetime = DateTime.UtcNow,
                 request.driverName,
@@ -256,23 +346,23 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
 
                 // Logic: ETD is current timeline. RTA is ETD + rta_mins.
                 DateTime segmentEtd = currentTimeline;
-                DateTime segmentRta = segmentEtd.AddMinutes(item.rta);
+                DateTime segmentRta = segmentEtd.AddMinutes(item.googleSuggestedTime);
 
                 segments.Add(new
                 {
                     TripId = transTripId,
-                    FromGeoId = item.fromGeoId,
-                    ToGeoId = item.toGeoId,
+                    //FromGeoId = item.fromGeoId,
+                    //ToGeoId = item.toGeoId,
                     SequenceNo = item.sequence,
                     Distance = item.distance,
                     SegmentETD = segmentEtd,
                     SegmentRTA = segmentRta,
-                    LeadTimeMins = item.leadTime,
-                    RTAMins = item.rta
+                    //LeadTimeMins = item.leadTime,
+                    //RTAMins = item.rta
                 });
 
                 // Advance timeline for NEXT segment: Current RTA + Current LeadTime
-                currentTimeline = segmentRta.AddMinutes(item.leadTime);
+                currentTimeline = segmentRta.AddMinutes(item.googleSuggestedTime);
             }
 
             await transaction.Connection.ExecuteAsync(detSql, segments, transaction);
