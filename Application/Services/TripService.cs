@@ -99,12 +99,20 @@ public class TripService : ITripService
 
             if (IsOneTime(request.frequency))
             {
-                // Parse start date/time
-                var datePart = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.UtcNow;
-                TimeSpan.TryParse(request.etd, out var timePart);
-                DateTime baseTimeline = datePart.Date.Add(timePart);
 
-                //await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, baseTimeline, transaction);
+                DateTime baseDate = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.Today;
+
+                DateTime TripETD = ParsePlannedTime(
+                ordered.First().plannedExitTime,
+                IsOneTime(request.frequency),
+                baseDate);
+
+                DateTime TripRTA = ParsePlannedTime(
+                ordered.Last().plannedEntryTime,
+                IsOneTime(request.frequency),
+                baseDate);
+
+                await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, segments, TripETD, TripRTA, secondaryDevicesJson, transaction);
             }
 
             transaction.Commit();
@@ -508,10 +516,10 @@ public class TripService : ITripService
             if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase))
             {
                 var datePart = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.UtcNow;
-                TimeSpan.TryParse(request.etd, out var timePart);
-                DateTime baseTimeline = datePart.Date.Add(timePart);
+                //TimeSpan.TryParse(request.etd, out var timePart);
+                //DateTime baseTimeline = datePart.Date.Add(timePart);
 
-                await _tripPlanRepository.CreateTransAndDetTripAsync(request.planId, request, baseTimeline, transaction);
+                //await _tripPlanRepository.CreateTransAndDetTripAsync(request.planId, request, baseTimeline, transaction);
             }
 
             transaction.Commit();

@@ -22,12 +22,15 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
         int planId,
         List<TripPlanGeofenceRouteDetailsDTO> geofenceDetails,
         IDbTransaction transaction);
-        
+
 
         Task CreateTransAndDetTripAsync(
         int planId,
         TripPlanRequestDTO request,
-        DateTime baseTimeline,
+        List<TripPlanRouteDetailsDTO> segments,
+        DateTime TripETD,
+        DateTime TripRTA,
+        string secondaryDevicesJson,
         IDbTransaction transaction);
 
         Task<(IEnumerable<dynamic> Items, int Total, int TotalActive)> GetAllTripPlansAsync

@@ -5,6 +5,7 @@ using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Microsoft.AspNetCore.Http.HttpResults;
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Text.Json;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
@@ -260,7 +261,10 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
         public async Task CreateTransAndDetTripAsync(
         int planId,
         TripPlanRequestDTO request,
-        DateTime baseTimeline,
+        List<TripPlanRouteDetailsDTO> segments,
+        DateTime TripETD,
+        DateTime TripRTA,
+        string secondaryDevicesJson,
         IDbTransaction transaction)
         {
             // 1. Insert into Trans_Trip (Master)
@@ -273,7 +277,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id, created_by,
             is_elock, is_gps, primary_device, consignee, consignor,
-            secondary_device, vehicle_category, routing_model, route_path
+            secondary_devices, vehicle_category, routing_model, route_path
             )
             VALUES
             (
@@ -283,16 +287,18 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             @driverName, @vehicleNumber, @driverPhone,
             @StartGeoId, @EndGeoId, @CreatedBy,
             @IsElockTrip, @IsGPSTrip, @PrimaryDevice, @Consignee, @Consignor,
-            @SecondaryDevice, @VehicleCategory, @RoutingModel, @RoutePath
+            @SecondaryDevice::jsonb, 
+            @VehicleCategory, @RoutingModel, @RoutePath
             )
             RETURNING trip_id;
             """;
 
             // We calculate the final RTA after processing details, but for the insert 
             // we'll update it or calculate it upfront. Let's calculate the timeline.
-            DateTime currentTimeline = DateTime.SpecifyKind(baseTimeline, DateTimeKind.Utc);
-            int totalRtaMins = request.routeDetails.Sum(x => x.googleSuggestedTime);
-            DateTime finalRta = currentTimeline.AddMinutes(totalRtaMins);
+            DateTime currentTimeline = DateTime.SpecifyKind(TripETD, DateTimeKind.Utc);
+            int totalRtaMins = segments.Sum(x => x.rta);
+            int totalLeadTime = segments.Sum(x => x.leadTime);
+            DateTime finalRta = TripRTA;
 
             int transTripId = await transaction.Connection.ExecuteScalarAsync<int>(transSql, new
             {
@@ -303,7 +309,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 TravelDate = currentTimeline.Date,
                 ETD = currentTimeline,
                 RTA = finalRta,
-                //TotalLeadTime = totalLeadTime,
+                TotalLeadTime = totalLeadTime,
                 request.routeId,
                 CreatedDatetime = DateTime.UtcNow,
                 request.driverName,
@@ -317,7 +323,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.primaryDevice,
                 request.Consignee,
                 request.Consignor,
-                request.secondaryDevice,
+                SecondaryDevice=secondaryDevicesJson,
                 request.vehicleCategory,
                 request.routingModel,
                 request.routePath
@@ -328,44 +334,42 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             INSERT INTO "TMS"."Det_Trip"
             (
             trip_id, from_geo_id, to_geo_id, sequence_no, 
-            distance, segment_etd, segment_rta, lead_time_mins, rta_mins
+            distance, segment_etd, segment_rta, lead_time_mins, rta_mins,
+            google_suggested_time
             )
             VALUES
             (
             @TripId, @FromGeoId, @ToGeoId, @SequenceNo, 
-            @Distance, @SegmentETD, @SegmentRTA, @LeadTimeMins, @RTAMins
+            @Distance, @SegmentETD, @SegmentRTA, @LeadTimeMins, @RTAMins,
+            @GoogleSuggestedTime
             );
             """;
 
-            var segments = new List<object>();
-            var sortedDetails = request.routeDetails.OrderBy(x => x.sequence).ToList();
-
-            for (int i = 0; i < sortedDetails.Count; i++)
+            var detailList = segments.Select(x => new
             {
-                var item = sortedDetails[i];
+                TripId= transTripId,
+                FromGeoId = x.fromGeoId,
+                ToGeoId = x.toGeoId,
+                SequenceNo = x.sequence,
+                Distance = x.distance,
+                SegmentETD = ParseDateTime(x.fromExitTime),
+                SegmentRTA = ParseDateTime(x.toEntryTime),
+                LeadTimeMins = x.leadTime,
+                RTAMins = x.rta,
+                GoogleSuggestedTime = x.googleSuggestedTime,
+            }).ToList();
 
-                // Logic: ETD is current timeline. RTA is ETD + rta_mins.
-                DateTime segmentEtd = currentTimeline;
-                DateTime segmentRta = segmentEtd.AddMinutes(item.googleSuggestedTime);
+            
 
-                segments.Add(new
-                {
-                    TripId = transTripId,
-                    //FromGeoId = item.fromGeoId,
-                    //ToGeoId = item.toGeoId,
-                    SequenceNo = item.sequence,
-                    Distance = item.distance,
-                    SegmentETD = segmentEtd,
-                    SegmentRTA = segmentRta,
-                    //LeadTimeMins = item.leadTime,
-                    //RTAMins = item.rta
-                });
+            await transaction.Connection.ExecuteAsync(detSql, detailList, transaction);
+        }
 
-                // Advance timeline for NEXT segment: Current RTA + Current LeadTime
-                currentTimeline = segmentRta.AddMinutes(item.googleSuggestedTime);
-            }
-
-            await transaction.Connection.ExecuteAsync(detSql, segments, transaction);
+        private DateTime ParseDateTime(string dateTime)
+        {
+            return DateTime.ParseExact(
+                dateTime,
+                "dd/MM/yyyy HH:mm",
+                CultureInfo.InvariantCulture);
         }
 
         public async Task<(IEnumerable<dynamic> Items, int Total, int TotalActive)> GetAllTripPlansAsync(int accountId, int page, int pageSize)
@@ -483,7 +487,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 VehicleId = request.vehicleId,
                 TripType = request.frequency,
                 TravelDate = travelDate,
-                ETD = request.etd,
+                //ETD = request.etd,
                 LeadTime = leadTime,
                 ETA = eta,
                 request.routeId,
