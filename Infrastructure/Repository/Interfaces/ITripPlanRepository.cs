@@ -42,11 +42,15 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
         int planId,
         TripPlanRequestDTO request,
         DateTime? travelDate,
-        int leadTime,
         int eta,
+        string secondaryDevicesJson,
+        string plannedEntryTime,
+        string plannedExitTime,
         IDbTransaction transaction);
 
         Task DeleteRouteDetailsByPlanIdAsync(int planId, IDbTransaction transaction);
+
+        Task DeleteGeofenceDetailsByPlanIdAsync(int planId, IDbTransaction transaction);
 
         Task<TripPlanByIdResponseDTO?> GetTripPlanByIdAsync(int planId);
 

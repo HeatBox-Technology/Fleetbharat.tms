@@ -7,6 +7,7 @@ using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using System.Text.Json;
+using System.Transactions;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
@@ -454,8 +455,10 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
         int planId,
         TripPlanRequestDTO request,
         DateTime? travelDate,
-        int leadTime,
-        int eta,
+        int totalETA,
+        string secondaryDevicesJson,
+        string plannedEntryTime,
+        string plannedExitTime,
         IDbTransaction transaction)
         {
             string sql = """
@@ -466,9 +469,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 vehicle_id = @VehicleId,
                 trip_type = @TripType,
                 travel_date = @TravelDate,
-                "ETD" = @ETD,
-                lead_time = @LeadTime,
-                "ETA" = @ETA,
                 route_id = @RouteId,
                 start_geo_id = @StartGeoId,
                 end_geo_id = @EndGeoId,
@@ -481,10 +481,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 primary_device = @PrimaryDevice,
                 consignee = @Consignee,
                 consignor = @Consignor,
-                secondary_device=@SecondaryDevice,
+                secondary_devices=@SecondaryDevicesJson::jsonb,
                 vehicle_category=@VehicleCategory,
                 routing_model=@RoutingModel,
-                route_path=@RoutePath
+                route_path=@RoutePath,
+                google_suggested_time=@GoogleSuggestedTime,
+                planned_start_time=@PlannedEntryTime,
+                planned_end_time=@PlannedExitTime
 
             WHERE plan_id = @PlanId;
             """;
@@ -497,9 +500,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 VehicleId = request.vehicleId,
                 TripType = request.frequency,
                 TravelDate = travelDate,
-                //ETD = request.etd,
-                LeadTime = leadTime,
-                ETA = eta,
                 request.routeId,
                 request.startGeoId,
                 request.endGeoId,
@@ -512,10 +512,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.primaryDevice,
                 request.Consignee,
                 request.Consignor,
-                request.secondaryDevice,
+                secondaryDevicesJson,
                 request.vehicleCategory,
                 request.routingModel,
-                request.routePath
+                request.routePath,
+                googleSuggestedTime= totalETA,
+                plannedEntryTime,
+                plannedExitTime
             }, transaction);
 
             return rowsAffected > 0;
@@ -526,6 +529,13 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             string sql = @"DELETE FROM ""TMS"".""Trip_Plan_Route_Detail"" WHERE plan_id = @PlanId";
             await transaction.Connection!.ExecuteAsync(sql, new { PlanId = planId }, transaction);
         }
+
+        public async Task DeleteGeofenceDetailsByPlanIdAsync(int planId, IDbTransaction transaction)
+        {
+            string sql = @"DELETE FROM ""TMS"".""Trip_Plan_Geofence_Details"" WHERE plan_id = @PlanId";
+            await transaction.Connection!.ExecuteAsync(sql, new { PlanId = planId }, transaction);
+        }
+
 
         public async Task<TripPlanByIdResponseDTO?> GetTripPlanByIdAsync(int planId)
         {

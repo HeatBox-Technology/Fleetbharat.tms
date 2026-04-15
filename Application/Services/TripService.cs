@@ -430,9 +430,9 @@ public class TripService : ITripService
             vehicleNo= trip.vehicle_no,
             tripType = trip.trip_type,
             travelDate = trip.travel_date?.ToString("dd/MM/yyyy"),
-            etd = trip.ETD,
-            leadTime = trip.lead_time ?? 0,
-            eta = trip.ETA ?? 0,
+            plannedStartTime = trip.planned_start_time,
+            googleSuggestedTime = trip.google_suggested_time ?? 0,
+            plannedEndTime = trip.planned_end_time,
             routeId = trip.route_id ?? 0,
             routeName = trip.route_name,
             startGeoId = trip.start_geo_id ?? 0,
@@ -484,52 +484,112 @@ public class TripService : ITripService
 
         try
         {
-            //Dynamic routing
+            // ✅ Dynamic routing
             if (IsDynamicRouting(request.routingModel))
             {
                 await CreateGeofencesAndMapAsync(request, transaction);
             }
 
-            // 1. Calculate Totals
-            //int totalLeadTime = request.routeDetails.Sum(x => x.leadTime);
-            //int totalETA = request.routeDetails.Sum(x => x.rta);
-            int totalLeadTime = 0;
-            int totalETA = 0;
+            // ✅ Calculate ETA (same as CREATE)
+            int totalETA = request.routeDetails.Sum(x => x.googleSuggestedTime);
 
             DateTime? parsedTravelDate = null;
-            if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(request.travelDate))
+
+            if (IsOneTime(request.frequency))
             {
-                if (DateTime.TryParseExact(request.travelDate, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-                    parsedTravelDate = date;
+                DateTime.TryParseExact(
+                    request.travelDate,
+                    "dd/MM/yyyy",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var date);
+
+                parsedTravelDate = date;
             }
 
-            // 2. Update Main Plan
+            // ✅ Convert points → segments
+            var segments = ConvertToRouteDetails(request);
+
+            var ordered = request.routeDetails
+                .OrderBy(x => x.sequence)
+                .ToList();
+
+            // ✅ Set Start & End Geo
+            request.startGeoId = ordered.First().geofenceId;
+            request.endGeoId = ordered.Last().geofenceId;
+
+            var plannedEntryTime = ordered.First().plannedExitTime;   // ETD
+            var plannedExitTime = ordered.Last().plannedEntryTime;    // final arrival
+
+            // ✅ Serialize secondary devices
+            var secondaryDevicesJson = request.secondaryDevice?.Any() == true
+                ? JsonSerializer.Serialize(request.secondaryDevice)
+                : "[]";
+
+            // ✅ Update Main Plan
             bool updated = await _tripPlanRepository.UpdateTripPlanAsync(
-                request.planId, request, parsedTravelDate, totalLeadTime, totalETA, transaction);
+                request.planId,
+                request,
+                parsedTravelDate,
+                totalETA,
+                secondaryDevicesJson,
+                plannedEntryTime,
+                plannedExitTime,
+                transaction);
 
             if (!updated)
-                throw new KeyNotFoundException($"Trip Plan not found.");
+                throw new KeyNotFoundException("Trip Plan not found.");
 
-            // 3. Clear old Route Details and Insert New Ones
+            // ✅ Delete old data
             await _tripPlanRepository.DeleteRouteDetailsByPlanIdAsync(request.planId, transaction);
-            //await _tripPlanRepository.InsertRouteDetailsAsync(request.planId, request.routeDetails, transaction);
+            await _tripPlanRepository.DeleteGeofenceDetailsByPlanIdAsync(request.planId, transaction);
 
-            if (request.frequency.Equals("one-time", StringComparison.OrdinalIgnoreCase))
+            // ✅ Insert fresh data
+            await _tripPlanRepository.InsertRouteDetailsAsync(
+                request.planId,
+                segments,
+                transaction);
+
+            await _tripPlanRepository.InsertGeofencePointsAsync(
+                request.planId,
+                request.routeDetails,
+                transaction);
+
+            // ✅ Handle ONE-TIME trip (same as CREATE)
+            if (IsOneTime(request.frequency))
             {
-                var datePart = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.UtcNow;
-                //TimeSpan.TryParse(request.etd, out var timePart);
-                //DateTime baseTimeline = datePart.Date.Add(timePart);
+                DateTime baseDate = DatetimeHelper.ParseToDate(request.travelDate, ["dd/MM/yyyy"]) ?? DateTime.Today;
 
-                //await _tripPlanRepository.CreateTransAndDetTripAsync(request.planId, request, baseTimeline, transaction);
+                DateTime TripETD = ParsePlannedTime(
+                    ordered.First().plannedExitTime,
+                    true,
+                    baseDate);
+
+                DateTime TripRTA = ParsePlannedTime(
+                    ordered.Last().plannedEntryTime,
+                    true,
+                    baseDate);
+
+                // ⚠️ Important: delete old trans trip before re-creating
+                //await _tripPlanRepository.DeleteTransTripByPlanIdAsync(request.planId, transaction);
+
+                await _tripPlanRepository.CreateTransAndDetTripAsync(
+                    request.planId,
+                    request,
+                    segments,
+                    TripETD,
+                    TripRTA,
+                    secondaryDevicesJson,
+                    transaction);
             }
 
             transaction.Commit();
             return ApiResponse<bool>.Ok(true, "Trip plan updated successfully");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             transaction.Rollback();
-            throw;
+            return ApiResponse<bool>.Fail($"Error updating trip plan: {ex.Message}", 500);
         }
     }
 

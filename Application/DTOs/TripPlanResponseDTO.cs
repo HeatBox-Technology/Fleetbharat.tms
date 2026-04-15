@@ -11,9 +11,9 @@
         public string? vehicleNo { get; set; }
         public string tripType { get; set; }
         public string travelDate { get; set; } // Formatted as dd/MM/yyyy
-        public string etd { get; set; }
-        public int leadTime { get; set; }
-        public int eta { get; set; }
+        public string plannedStartTime { get; set; }
+        public int googleSuggestedTime { get; set; }
+        public string plannedEndTime { get; set; }
         public int routeId { get; set; }
         public string routeName { get; set; } // Joined from Route table
         public int startGeoId { get; set; }
