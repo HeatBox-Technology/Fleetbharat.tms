@@ -545,8 +545,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             string sql = """
             SELECT 
                 plan_id AS planId, account_id AS accountId, driver_id AS driverId,
-                vehicle_id AS vehicleId, trip_type AS frequeny, travel_date AS travelDate,
-                "ETD" AS etd, lead_time AS leadTime, "ETA" AS eta, route_id AS routeId,
+                vehicle_id AS vehicleId, trip_type AS frequency, travel_date AS travel_date,
+                route_id AS routeId,
                 start_geo_id AS startGeoId, end_geo_id AS endGeoId, week_days AS weekDays,
                 created_datetime AS createdDatetime, created_by AS createdBy, driver_name AS driverName,
                 vehicle_no AS vehicleNo, driver_phone AS driverPhone,routing_model AS routingModel,
@@ -560,7 +560,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 primary_device AS primaryDevice,
                 consignee AS consignee,
                 consignor AS consignor,
-                secondary_device AS secondayDevice,
+                secondary_devices AS secondaryDevicesJson,
                 vehicle_category AS vehicleCategory
             FROM "TMS"."Trip_Plan"
             WHERE plan_id = @Id
@@ -584,6 +584,34 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             """;
 
             return await connection.QueryAsync<TripPlanRouteDetailsDTO>(sql, new { Id = planId });
+        }
+
+        public async Task<IEnumerable<TripPlanGeofenceDbResponseDTO>> GetGeofenceDetailsByPlanIdAsync(int planId)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            connection.Open();
+            string sql = """
+            SELECT 
+                plan_id AS planId, 
+                geofence_id AS geofenceId, 
+                geofence_type AS geofenceType,
+                point_type AS pointType,
+                geofence_address AS geofenceAddress,
+                geo_center_latitude AS geofenceCenterLatitude,
+                geo_center_longitude AS geofenceCenterLongitude,
+                geo_radius AS geofenceRadius,
+                planned_entry_time AS plannedEntryTime,
+                planned_exit_time AS plannedExitTime,
+                sequence, 
+                distance, 
+                google_suggested_time AS googleSuggestedTime,
+                geofence_coordinates AS geofenceDetails
+            FROM "TMS"."Trip_Plan_Geofence_Details"
+            WHERE plan_id = @Id
+            ORDER BY sequence ASC
+            """;
+
+            return await connection.QueryAsync<TripPlanGeofenceDbResponseDTO>(sql, new { Id = planId });
         }
     }
 }

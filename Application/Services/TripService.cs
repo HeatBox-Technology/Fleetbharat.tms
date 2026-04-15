@@ -597,7 +597,16 @@ public class TripService : ITripService
     {
         // 1. Fetch from repository
         var plan = await _tripPlanRepository.GetTripPlanByIdAsync(planId);
+        if (plan != null)
+        {
+            plan.secondaryDevice = string.IsNullOrEmpty(plan.secondaryDeviceJson)
+            ? new List<string?>()
+            : JsonSerializer.Deserialize<List<string?>>(plan.secondaryDeviceJson);
 
+            plan.travelDate = plan.travel_date.HasValue
+            ? plan.travel_date.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
+            : null;
+        }
         // 2. Handle "Not Found" via Middleware
         if (plan == null)
         {
@@ -605,10 +614,46 @@ public class TripService : ITripService
         }
 
         // 3. Fetch the child records separately
-        var details = await _tripPlanRepository.GetRouteDetailsByPlanIdAsync(planId);
+        var details = await _tripPlanRepository.GetGeofenceDetailsByPlanIdAsync(planId);
+
+        
+        var result = details?.Select(geoDetails =>
+        {
+            List<GeofenceDetailsDTO> parsedDetails;
+
+            try
+            {
+                parsedDetails = string.IsNullOrWhiteSpace(geoDetails.geofenceDetails)
+                    ? new List<GeofenceDetailsDTO>()
+                    : JsonSerializer.Deserialize<List<GeofenceDetailsDTO>>(
+                        geoDetails.geofenceDetails,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                      ) ?? new List<GeofenceDetailsDTO>();
+            }
+            catch
+            {
+                parsedDetails = new List<GeofenceDetailsDTO>();
+            }
+
+            return new TripPlanGeofenceRouteDetailsDTO
+            {
+                geofenceId = geoDetails.geofenceId,
+                geofenceType = geoDetails.geofenceType,
+                pointType = geoDetails.pointType,
+                geofenceAddress = geoDetails.geofenceAddress,
+                geofenceCenterLatitude = geoDetails.geofenceCenterLatitude,
+                geofenceCenterLongitude = geoDetails.geofenceCenterLongitude,
+                geofenceRadius = geoDetails.geofenceRadius,
+                geofenceDetails = parsedDetails,
+                sequence = geoDetails.sequence,
+                plannedEntryTime = geoDetails.plannedEntryTime,
+                plannedExitTime = geoDetails.plannedExitTime
+            };
+        }).ToList();
+        
 
         // 4. Combine them
-        plan.routeDetails = details.ToList();
+        plan.routeDetails = result;
 
         return ApiResponse<TripPlanByIdResponseDTO>.Ok(plan, "Trip details retrieved.");
     }
