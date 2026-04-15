@@ -366,11 +366,21 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
 
         private DateTime ParseDateTime(string dateTime)
         {
-            return DateTime.ParseExact(
-                dateTime,
+            string[] formats =
+            {
                 "dd/MM/yyyy HH:mm",
-                CultureInfo.InvariantCulture);
-        }
+                "dd/MM/yyyy HH:mm:ss",
+                "dd/MM/yyyy hh:mm tt",
+                "dd/MM/yyyy hh:mm:ss tt",
+                "yyyy-MM-dd HH:mm:ss"
+            };
+
+            return DateTime.ParseExact(
+            dateTime,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None);
+            }
 
         public async Task<(IEnumerable<dynamic> Items, int Total, int TotalActive)> GetAllTripPlansAsync(int accountId, int page, int pageSize)
         {

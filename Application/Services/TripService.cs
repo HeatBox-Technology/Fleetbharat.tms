@@ -351,6 +351,7 @@ public class TripService : ITripService
             {
             "dd/MM/yyyy HH:mm",
             "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy hh:mm tt",
             "yyyy-MM-dd HH:mm:ss",
             "yyyy-MM-ddTHH:mm:ss"
         };
@@ -376,7 +377,7 @@ public class TripService : ITripService
             // Optional: handle HH:mm:ss manually
             if (DateTime.TryParseExact(
                     timeValue,
-                    new[] { "HH:mm", "HH:mm:ss" },
+                    new[] { "HH:mm", "HH:mm:ss","hh:mm tt","hh:mm:ss tt" },
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.None,
                     out var parsedTime))
