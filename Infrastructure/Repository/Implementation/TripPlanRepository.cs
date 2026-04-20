@@ -613,5 +613,34 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
 
             return await connection.QueryAsync<TripPlanGeofenceDbResponseDTO>(sql, new { Id = planId });
         }
+
+
+        public async Task<List<TripDbDTO>> GetTripsForOverlapCheck(
+        string vehicleNo,
+        int? planId,
+        IDbTransaction transaction)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            connection.Open();
+
+            var query = @"
+            SELECT plan_id AS TripPlanId, 
+            trip_type AS Frequency, 
+            planned_end_time AS PlannedEndTime, 
+            planned_start_time AS PlannedStartTime, 
+            week_days AS WeekDays,
+            travel_date AS TravelDate,
+            google_suggested_time AS TotalETA
+            FROM ""TMS"".""Trip_Plan""
+            WHERE vehicle_no = @VehicleNo
+            AND plan_id <> COALESCE(@PlanId, 0);
+            ";
+
+            return (await connection.QueryAsync<TripDbDTO>(
+                query,
+                new { VehicleNo = vehicleNo, PlanId = planId },
+                transaction
+            )).ToList();
+        }
     }
 }

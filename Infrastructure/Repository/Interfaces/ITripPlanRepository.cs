@@ -57,5 +57,10 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
         Task<IEnumerable<TripPlanRouteDetailsDTO>> GetRouteDetailsByPlanIdAsync(int planId);
 
         Task<IEnumerable<TripPlanGeofenceDbResponseDTO>> GetGeofenceDetailsByPlanIdAsync(int planId);
+
+        Task<List<TripDbDTO>> GetTripsForOverlapCheck(
+        string vehicleNo,
+        int? planId,
+        IDbTransaction transaction);
     }
 }

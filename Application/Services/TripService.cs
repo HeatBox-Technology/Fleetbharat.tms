@@ -79,7 +79,33 @@ public class TripService : ITripService
             var secondaryDevicesJson = request.secondaryDevice?.Any() == true
                 ? JsonSerializer.Serialize(request.secondaryDevice)
                 : "[]";
-            
+
+            //trip overlap check start
+            var existingTrips = await _tripPlanRepository.GetTripsForOverlapCheck(
+            request.vehicleNumber,
+            request.planId,
+            transaction);
+
+            // Build NEW trip DTO
+            var newTrip = new TripDbDTO
+            {
+                Frequency = request.frequency,
+                TravelDate = parsedTravelDate,
+                PlannedStartTime = plannedEntryTime, // your existing variable
+                PlannedEndTime = plannedExitTime,
+                TotalETA = totalETA,
+                WeekDays = request.weekDays
+            };
+
+            // Check overlap
+            foreach (var trip in existingTrips)
+            {
+                if (IsOverlap(newTrip, trip))
+                {
+                    return ApiResponse<int>.Fail("Trip overlaps with existing trip", 400);
+                }
+            }
+            //trip overlap check end
 
             int planId = await _tripPlanRepository.CreateTripPlanAsync(
                 request,
@@ -189,6 +215,136 @@ public class TripService : ITripService
         }
 
         return ApiResponse<int>.Ok(0);
+    }
+
+    private bool OverlapOneTime(TripDbDTO a, TripDbDTO b)
+    {
+        var aStart = ParseDbDateTime(a.PlannedStartTime);
+        var aEnd = ParseDbDateTime(a.PlannedEndTime);
+
+        var bStart = ParseDbDateTime(b.PlannedStartTime);
+        var bEnd = ParseDbDateTime(b.PlannedEndTime);
+
+        return aStart < bEnd && bStart < aEnd;
+    }
+
+    private bool OverlapRecurring(TripDbDTO a, TripDbDTO b)
+    {
+        var aDays = ParseWeekDays(a.WeekDays);
+        var bDays = ParseWeekDays(b.WeekDays);
+
+        if (!aDays.Intersect(bDays).Any())
+            return false;
+
+        var (aStart, aEnd) = GetTripWindow(a);
+        var (bStart, bEnd) = GetTripWindow(b);
+
+        return aStart.TimeOfDay < bEnd.TimeOfDay &&
+               bStart.TimeOfDay < aEnd.TimeOfDay;
+    }
+
+    private bool OverlapOneTimeVsRecurring(TripDbDTO one, TripDbDTO recurring)
+    {
+        var oneStart = ParseDbDateTime(one.PlannedStartTime);
+        var oneEnd = ParseDbDateTime(one.PlannedEndTime);
+
+        var recDays = ParseWeekDays(recurring.WeekDays);
+
+        if (!recDays.Contains(oneStart.DayOfWeek))
+            return false;
+
+        var recStartTime = ParseDbDateTime(recurring.PlannedStartTime).TimeOfDay;
+        var recEndTime = ParseDbDateTime(recurring.PlannedEndTime).TimeOfDay;
+
+        var recStart = oneStart.Date.Add(recStartTime);
+
+        var etaEnd = recStart.AddMinutes(recurring.TotalETA);
+        var recEnd = etaEnd.Date.Add(recEndTime);
+
+        if (recEnd <= recStart)
+            recEnd = recEnd.AddDays(1);
+
+        return oneStart < recEnd && recStart < oneEnd;
+    }
+
+    private (DateTime Start, DateTime End) GetTripWindow(TripDbDTO trip)
+    {
+        if (trip.Frequency == "ONE_TIME")
+        {
+            var start = ParseDbDateTime(trip.PlannedStartTime);
+            var end = ParseDbDateTime(trip.PlannedEndTime);
+
+            return (start, end);
+        }
+        else
+        {
+            // recurring → only use time part
+            var parsedStart = ParseDbDateTime(trip.PlannedStartTime);
+            var parsedEnd = ParseDbDateTime(trip.PlannedEndTime);
+            DateTime today = DateTime.Today;
+
+            var start = today.Date.Add(parsedStart.TimeOfDay);
+            var etaEnd = start.AddMinutes(trip.TotalETA);
+            var end = etaEnd.Date.Add(parsedEnd.TimeOfDay);
+
+            return (start, end);
+        }
+    }
+
+    private List<DayOfWeek> ParseWeekDays(string weekDays)
+    {
+        if (string.IsNullOrWhiteSpace(weekDays))
+            return new List<DayOfWeek>();
+
+        return weekDays
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => Enum.Parse<DayOfWeek>(x.Trim(), ignoreCase: true))
+            .ToList();
+    }
+
+
+
+
+    private DateTime ParseDbDateTime(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            throw new Exception("Invalid datetime value");
+
+        string[] formats =
+        {
+        "dd/MM/yyyy HH:mm",
+        "dd/MM/yyyy hh:mm tt",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-ddTHH:mm:ss",
+        "hh:mm tt",
+        "HH:mm"
+    };
+
+        if (DateTime.TryParseExact(
+            value,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var result))
+        {
+            return result;
+        }
+
+        throw new Exception($"Invalid datetime format: {value}");
+    }
+
+    private bool IsOverlap(TripDbDTO a, TripDbDTO b)
+    {
+        if (a.Frequency == "ONE-TIME" && b.Frequency == "ONE-TIME")
+            return OverlapOneTime(a, b);
+
+        if (a.Frequency == "RECURRING" && b.Frequency == "RECURRING")
+            return OverlapRecurring(a, b);
+
+        if (a.Frequency == "ONE-TIME")
+            return OverlapOneTimeVsRecurring(a, b);
+
+        return OverlapOneTimeVsRecurring(b, a);
     }
 
     #endregion
