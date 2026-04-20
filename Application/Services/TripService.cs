@@ -682,6 +682,33 @@ public class TripService : ITripService
                 ? JsonSerializer.Serialize(request.secondaryDevice)
                 : "[]";
 
+            //trip overlap check start
+            var existingTrips = await _tripPlanRepository.GetTripsForOverlapCheck(
+            request.vehicleNumber,
+            request.planId,
+            transaction);
+
+            // Build NEW trip DTO
+            var newTrip = new TripDbDTO
+            {
+                Frequency = request.frequency,
+                TravelDate = parsedTravelDate,
+                PlannedStartTime = plannedEntryTime, // your existing variable
+                PlannedEndTime = plannedExitTime,
+                TotalETA = totalETA,
+                WeekDays = request.weekDays
+            };
+
+            // Check overlap
+            foreach (var trip in existingTrips)
+            {
+                if (IsOverlap(newTrip, trip))
+                {
+                    return ApiResponse<bool>.Fail("Trip overlaps with existing trip", 400);
+                }
+            }
+            //trip overlap check end
+
             // ✅ Update Main Plan
             bool updated = await _tripPlanRepository.UpdateTripPlanAsync(
                 request.planId,
