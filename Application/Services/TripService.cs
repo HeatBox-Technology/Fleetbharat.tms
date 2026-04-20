@@ -634,6 +634,9 @@ public class TripService : ITripService
         if (request.routeDetails == null || !request.routeDetails.Any())
             return ApiResponse<bool>.Fail("Route details are required.", 400);
 
+        if (request.frequency == "ONE-TIME")
+            return ApiResponse<bool>.Fail("One-Time Trip Plans cannot be edited, please create a new plan.", 400);
+
         using var connection = _dbConnectionFactory.CreateConnection();
         connection.Open();
         using var transaction = connection.BeginTransaction();
