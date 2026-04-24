@@ -1,17 +1,27 @@
-using System.Text;
+using FleetBharat.TMSService.Application.Interfaces;
+using FleetBharat.TMSService.Application.Services;
+using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
+using FleetBharat.TMSService.Infrastructure.Repository.Implementation;
+using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
+using Hangfire;
+using Hangfire.PostgreSql;
+using Infrastructure.ExternalServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using FleetBharat.TMSService.Application.Interfaces;
-using FleetBharat.TMSService.Application.Services;
-using Infrastructure.ExternalServices;
-using FleetBharat.TMSService.Infrastructure.Repository.Implementation;
-using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
-using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ✅ Add Hangfire
+builder.Services.AddHangfire(config =>
+    config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("Default"))
+);
+
+builder.Services.AddHangfireServer();
+
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -87,6 +97,8 @@ builder.Services.AddScoped<DbLogger>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<ITripPlanRepository, TripPlanRepository>();
+builder.Services.AddScoped<ICreateTripService, CreateTripService>();
+builder.Services.AddScoped<ICreateTripRepository, CreateTripRepository>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? builder.Configuration.GetConnectionString("Default");
@@ -164,6 +176,20 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+var scope = app.Services.CreateScope();
+var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+
+recurringJobManager.AddOrUpdate<ICreateTripService>(
+    "create-recurring-trips",
+    service => service.CreateTripAsync(),
+    "15 0 * * *",
+    new RecurringJobOptions
+    {
+        TimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
+    });
+// ✅ Hangfire Dashboard
+app.UseHangfireDashboard("/hangfire");
 
 
 // ================= MIDDLEWARE =================

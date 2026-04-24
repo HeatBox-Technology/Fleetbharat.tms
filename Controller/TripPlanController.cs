@@ -1,4 +1,5 @@
 ﻿using FleetBharat.TMSService.Application.DTOs;
+using FleetBharat.TMSService.Application.Interfaces;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,10 @@ namespace FleetBharat.TMSService.Controller
     public class TripPlanController : ControllerBase
     {
         private readonly ITripService _service;
-        public TripPlanController(ITripService service) => _service = service;
+        public TripPlanController(ITripService service)
+        {
+            _service = service;
+        } 
 
         [HttpPost]
         public async Task<IActionResult> CreateTripPlan([FromBody] TripPlanRequestDTO request)
