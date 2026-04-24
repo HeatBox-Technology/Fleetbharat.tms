@@ -1,3 +1,4 @@
+using FleetBharat.TMSService.Application.Filters;
 using FleetBharat.TMSService.Application.Interfaces;
 using FleetBharat.TMSService.Application.Services;
 using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
@@ -189,7 +190,10 @@ recurringJobManager.AddOrUpdate<ICreateTripService>(
         TimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
     });
 // ✅ Hangfire Dashboard
-app.UseHangfireDashboard("/hangfire");
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new AllowAllDashboardAuthorizationFilter() }
+});
 
 
 // ================= MIDDLEWARE =================
