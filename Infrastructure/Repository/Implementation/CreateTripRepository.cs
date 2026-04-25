@@ -223,6 +223,14 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 "dd-MM-yyyy hh:mm:ss",
                 "dd-MM-yyyy hh:mm:ss tt",
                 "dd-MM-yyyy HH:mm",
+                "MM/dd/yyyy hh:mm:ss tt",
+                "MM/dd/yyyy HH:mm:ss",
+                "MM/dd/yyyy HH:mm",
+                "MM/dd/yyyy hh:mm tt",
+                "MM-dd-yyyy hh:mm:ss tt",
+                "MM-dd-yyyy HH:mm:ss",
+                "MM-dd-yyyy HH:mm",
+                "MM-dd-yyyy hh:mm tt"
             };
 
             return DateTime.ParseExact(
