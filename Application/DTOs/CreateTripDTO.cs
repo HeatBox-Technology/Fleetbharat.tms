@@ -19,8 +19,7 @@
         public string plannedEndTime { get; set; }
         public int googleSuggestedTime { get;set; }
         public string? secondaryDevices { get; set; }
-        public bool isElockTrip { get; set; }
-        public bool isGPSTrip { get; set; }
+        public string tripType { get; set; }
         public int? Consignee { get; set; }
         public int? Consignor { get; set; }
         public string? vehicleCategory { get; set; }

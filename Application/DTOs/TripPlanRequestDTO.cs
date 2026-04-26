@@ -19,8 +19,9 @@
         public int endGeoId { get; set; }
         public Guid createdBy { get; set; }
         public string weekDays { get; set; }
-        public bool isElockTrip { get; set; }
-        public bool isGPSTrip { get; set; }
+        //public bool isElockTrip { get; set; }
+        //public bool isGPSTrip { get; set; }
+        public string tripType { get; set; } //Elock/GPS
         public string? primaryDevice { get; set; }
         public List<string>? secondaryDevice { get; set; }
         public string? vehicleCategory { get; set; }

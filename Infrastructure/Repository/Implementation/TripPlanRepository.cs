@@ -38,7 +38,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 account_id,
                 driver_id,
                 vehicle_id,
-                trip_type,
+                frequency,
                 travel_date,
                 route_id,
                 created_datetime,
@@ -49,8 +49,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 driver_name,
                 vehicle_no,
                 driver_phone,
-                is_elock,
-                is_gps,
                 primary_device,
                 consignee,
                 consignor,
@@ -60,14 +58,15 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 route_path,
                 google_suggested_time,
                 planned_start_time,
-                planned_end_time
+                planned_end_time,
+                trip_type
             )
             VALUES
             (
                 @AccountId,
                 @DriverId,
                 @VehicleId,
-                @TripType,
+                @Frequency,
                 @TravelDate,
                 @RouteId,
                 @CreatedDatetime,
@@ -78,8 +77,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @DriverName,
                 @VehicleNumber,
                 @DriverPhone,
-                @IsElockTrip,
-                @IsGPSTrip,
                 @PrimaryDevice,
                 @Consignee,
                 @Consignor,
@@ -89,7 +86,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 @RoutePath,
                 @Eta,
                 @PlannedEntryTime,
-                @PlannedExitTime
+                @PlannedExitTime,
+                @TripType
             )
             RETURNING plan_id;
         """;
@@ -101,7 +99,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.accountId,
                     request.driverId,
                     request.vehicleId,
-                    TripType=request.frequency,
+                    Frequency=request.frequency,
                     TravelDate = travelDate,
                     request.routeId,
                     CreatedDatetime = DateTime.UtcNow,
@@ -112,8 +110,6 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.driverName,
                     request.vehicleNumber,
                     request.driverPhone,
-                    request.isElockTrip,
-                    request.isGPSTrip,
                     request.primaryDevice,
                     request.Consignee,
                     request.Consignor,
@@ -123,7 +119,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                     request.routePath,
                     eta,
                     plannedEntryTime,
-                    plannedExitTime
+                    plannedExitTime,
+                    request.tripType
                 },
                 transaction);
 
@@ -272,22 +269,22 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             string transSql = """
             INSERT INTO "TMS"."Trans_Trip"
             (
-            account_id, driver_id, vehicle_id, trip_type, 
+            account_id, driver_id, vehicle_id, frequency, 
             travel_date, etd, rta, total_lead_time, 
             route_id, created_datetime, is_active,
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id, created_by,
-            is_elock, is_gps, primary_device, consignee, consignor,
+            trip_type,primary_device, consignee, consignor,
             secondary_devices, vehicle_category, routing_model, route_path
             )
             VALUES
             (
-            @AccountId, @DriverId, @VehicleId, @TripType, 
+            @AccountId, @DriverId, @VehicleId, @Frequency, 
             @TravelDate, @ETD, @RTA, @TotalLeadTime, 
             @RouteId, @CreatedDatetime, true,
             @driverName, @vehicleNumber, @driverPhone,
             @StartGeoId, @EndGeoId, @CreatedBy,
-            @IsElockTrip, @IsGPSTrip, @PrimaryDevice, @Consignee, @Consignor,
+            @TripType, @PrimaryDevice, @Consignee, @Consignor,
             @SecondaryDevice::jsonb, 
             @VehicleCategory, @RoutingModel, @RoutePath
             )
@@ -306,7 +303,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.accountId,
                 request.driverId,
                 request.vehicleId,
-                TripType=request.frequency,
+                Frequency=request.frequency,
                 TravelDate = currentTimeline.Date,
                 ETD = currentTimeline,
                 RTA = finalRta,
@@ -319,8 +316,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.startGeoId,
                 request.endGeoId,
                 request.createdBy,
-                request.isElockTrip,
-                request.isGPSTrip,
+                request.tripType,
                 request.primaryDevice,
                 request.Consignee,
                 request.Consignor,
@@ -467,7 +463,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 account_id = @AccountId,
                 driver_id = @DriverId,
                 vehicle_id = @VehicleId,
-                trip_type = @TripType,
+                frequency = @Frequency,
                 travel_date = @TravelDate,
                 route_id = @RouteId,
                 start_geo_id = @StartGeoId,
@@ -476,8 +472,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 driver_name = @DriverName,
                 vehicle_no = @VehicleNumber,
                 driver_phone = @DriverPhone,
-                is_elock = @IsElockTrip,
-                is_gps = @IsGPSTrip,
+                trip_type = @TripType,
                 primary_device = @PrimaryDevice,
                 consignee = @Consignee,
                 consignor = @Consignor,
@@ -498,7 +493,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 AccountId = request.accountId,
                 DriverId = request.driverId,
                 VehicleId = request.vehicleId,
-                TripType = request.frequency,
+                Frequency = request.frequency,
                 TravelDate = travelDate,
                 request.routeId,
                 request.startGeoId,
@@ -507,8 +502,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.driverName,
                 request.vehicleNumber,
                 request.driverPhone,
-                request.isElockTrip,
-                request.isGPSTrip,
+                TripType = request.tripType,
                 request.primaryDevice,
                 request.Consignee,
                 request.Consignor,
@@ -545,7 +539,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             string sql = """
             SELECT 
                 plan_id AS planId, account_id AS accountId, driver_id AS driverId,
-                vehicle_id AS vehicleId, trip_type AS frequency, travel_date AS travel_date,
+                vehicle_id AS vehicleId, frequency AS frequency, travel_date AS travel_date,
                 route_id AS routeId,
                 start_geo_id AS startGeoId, end_geo_id AS endGeoId, week_days AS weekDays,
                 created_datetime AS createdDatetime, created_by AS createdBy, driver_name AS driverName,
@@ -561,7 +555,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 consignee AS consignee,
                 consignor AS consignor,
                 secondary_devices AS secondaryDevicesJson,
-                vehicle_category AS vehicleCategory
+                vehicle_category AS vehicleCategory,
+                trip_type AS tripType
             FROM "TMS"."Trip_Plan"
             WHERE plan_id = @Id
             """;

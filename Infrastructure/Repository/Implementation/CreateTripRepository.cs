@@ -32,8 +32,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             vehicle_category AS vehicleCategory,
             route_path AS routePath,
             routing_model AS routingModel,
-            is_elock AS isElockTrip,
-            is_gps AS isGPSTrip,
+            trip_type AS tripType,
             consignee AS Consignee,
             consignor AS Consignor,
             created_by AS createdBy
@@ -120,7 +119,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             route_id, created_datetime, is_active,
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id,created_by,
-            is_elock, is_gps, primary_device, consignee, consignor,
+            trip_type, primary_device, consignee, consignor,
             secondary_devices, vehicle_category, routing_model, route_path
             )
             VALUES
@@ -130,7 +129,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             @RouteId, @CreatedDatetime, true,
             @driverName, @vehicleNumber, @driverPhone,
             @StartGeoId, @EndGeoId,@CreatedBy,
-            @IsElockTrip, @IsGPSTrip, @PrimaryDevice, @Consignee, @Consignor,
+            @TripType, @PrimaryDevice, @Consignee, @Consignor,
             @SecondaryDevice::jsonb, 
             @VehicleCategory, @RoutingModel, @RoutePath
             )
@@ -160,8 +159,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.startGeoId,
                 request.endGeoId,
                 request.createdBy,
-                request.isElockTrip,
-                request.isGPSTrip,
+                request.tripType,
                 request.primaryDevice,
                 request.Consignee,
                 request.Consignor,

@@ -585,6 +585,7 @@ public class TripService : ITripService
             vehicleId = trip.vehicle_id ?? 0,
             vehicleNo= trip.vehicle_no,
             tripType = trip.trip_type,
+            frequency = trip.frequency,
             travelDate = trip.travel_date?.ToString("dd/MM/yyyy"),
             plannedStartTime = trip.planned_start_time,
             googleSuggestedTime = trip.google_suggested_time ?? 0,

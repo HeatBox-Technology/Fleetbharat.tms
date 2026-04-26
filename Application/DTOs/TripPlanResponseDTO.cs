@@ -22,6 +22,7 @@
         public string endGeoName { get; set; }
         public DateTime createdDatetime { get; set; }
         public bool isActive { get; set; }
+        public string frequency { get; set; }
     }
 
     public class TripPlanSummaryDto

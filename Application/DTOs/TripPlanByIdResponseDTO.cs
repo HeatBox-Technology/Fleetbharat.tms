@@ -1,4 +1,6 @@
-﻿namespace FleetBharat.TMSService.Application.DTOs
+﻿using Npgsql.EntityFrameworkCore.PostgreSQL.Query.Expressions.Internal;
+
+namespace FleetBharat.TMSService.Application.DTOs
 {
     public class TripPlanByIdResponseDTO
     {
@@ -22,8 +24,7 @@
         public string? routingModel { get; set; }
         public string? fleetSource { get; set; }
         public string? routePath { get; set; }
-        public bool isElockTrip { get; set; }
-        public bool isGPSTrip { get; set; }
+        public string tripType { get; set; }
         public string? primaryDevice { get; set; }
         public List<string?> secondaryDevice { get; set; }
         public string? secondaryDeviceJson { get; set; }
