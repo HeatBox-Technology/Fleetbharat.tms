@@ -98,8 +98,12 @@ builder.Services.AddScoped<DbLogger>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<ITripPlanRepository, TripPlanRepository>();
+
 builder.Services.AddScoped<ICreateTripService, CreateTripService>();
 builder.Services.AddScoped<ICreateTripRepository, CreateTripRepository>();
+builder.Services.AddScoped<ICurrentTripService, CurrentTripService>();
+builder.Services.AddScoped<ICurrentTripRepository, CurrentTripRepository>();
+
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? builder.Configuration.GetConnectionString("Default");
@@ -189,6 +193,13 @@ recurringJobManager.AddOrUpdate<ICreateTripService>(
     {
         TimeZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
     });
+
+recurringJobManager.AddOrUpdate<CurrentTripService>(
+    "assign-current-trips",
+    service => service.UpdateCurrentTripAndLegentIcon(),
+    "*/3 * * * *" // every 3 minutes
+);
+
 // ✅ Hangfire Dashboard
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
