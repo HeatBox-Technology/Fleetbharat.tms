@@ -15,6 +15,9 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
         List<TripPlanRouteDetailsDTO> segments,
         DateTime TripETD,
         DateTime TripRTA,
+        string geofenceJson,
         IDbTransaction transaction);
+
+        Task<IEnumerable<TripPlanGeofenceDbResponseDTO>> GetGeofenceDetailsByPlanIdAsync(int planId);
     }
 }

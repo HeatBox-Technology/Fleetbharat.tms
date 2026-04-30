@@ -2,6 +2,7 @@
 using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
 using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Hangfire;
+using Newtonsoft.Json;
 using System.Collections;
 
 namespace FleetBharat.TMSService.Application.Services
@@ -71,12 +72,22 @@ namespace FleetBharat.TMSService.Application.Services
                             route.toEntryTime = segment_rta.ToString();
                         }
 
+                        var geofenceDetails = await _createTripRepository.GetGeofenceDetailsByPlanIdAsync(trip.planId);
+
+                        var geofenceList = geofenceDetails?.OrderBy(x => x.sequence).ToList();
+
+                        // ✅ Convert to JSON
+                        var geofenceJson = (geofenceList == null || !geofenceList.Any())
+                            ? "[]"
+                            : JsonConvert.SerializeObject(geofenceList);
+
                         await _createTripRepository.CreateTransAndDetTripAsync(
                         trip.planId,
                         trip,
                         routeDetails,
                         plannedStart,
                         plannedEnd,
+                        geofenceJson,
                         transaction);
 
                         transaction.Commit();

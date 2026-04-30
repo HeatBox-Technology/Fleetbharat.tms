@@ -1,5 +1,6 @@
 ﻿using Dapper;
 using FleetBharat.TMSService.Application.DTOs;
+using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
 using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using System.Data;
 using System.Globalization;
@@ -8,6 +9,12 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
 {
     public class CreateTripRepository : ICreateTripRepository
     {
+        private readonly IDbConnectionFactory _connectionFactory;
+
+        public CreateTripRepository(IDbConnectionFactory connectionFactory)
+        {
+            _connectionFactory = connectionFactory;
+        }
         public async Task<List<CreateTripDTO>> GetRecurringTrips(IDbTransaction transaction)
         {
             var query = @"
@@ -16,7 +23,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             account_id AS accountId, 
             driver_id AS driverId,
             vehicle_id AS vehicleId, 
-            trip_type AS frequency, 
+            frequency AS frequency, 
             route_id AS routeId,
             start_geo_id AS startGeoId, 
             end_geo_id AS endGeoId, 
@@ -38,7 +45,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             created_by AS createdBy
 
             FROM ""TMS"".""Trip_Plan""
-            WHERE ""trip_type"" = 'RECURRING';
+            WHERE ""frequency"" = 'RECURRING';
         ";
 
             var result = await transaction.Connection.QueryAsync<CreateTripDTO>(
@@ -108,30 +115,33 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
         List<TripPlanRouteDetailsDTO> segments,
         DateTime TripETD,
         DateTime TripRTA,
+        string geofenceJson,
         IDbTransaction transaction)
         {
             // 1. Insert into Trans_Trip (Master)
             string transSql = """
             INSERT INTO "TMS"."Trans_Trip"
             (
-            account_id, driver_id, vehicle_id, trip_type, 
+            account_id, driver_id, vehicle_id, frequency, 
             travel_date, etd, rta, total_lead_time, 
             route_id, created_datetime, is_active,
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id,created_by,
             trip_type, primary_device, consignee, consignor,
-            secondary_devices, vehicle_category, routing_model, route_path
+            secondary_devices, vehicle_category, routing_model, route_path,
+            geofence_json
             )
             VALUES
             (
-            @AccountId, @DriverId, @VehicleId, @TripType, 
+            @AccountId, @DriverId, @VehicleId, @Frequency, 
             @TravelDate, @ETD, @RTA, @TotalLeadTime, 
             @RouteId, @CreatedDatetime, true,
             @driverName, @vehicleNumber, @driverPhone,
             @StartGeoId, @EndGeoId,@CreatedBy,
             @TripType, @PrimaryDevice, @Consignee, @Consignor,
             @SecondaryDevice::jsonb, 
-            @VehicleCategory, @RoutingModel, @RoutePath
+            @VehicleCategory, @RoutingModel, @RoutePath, 
+            @GeofenceJson::jsonb
             )
             RETURNING trip_id;
             """;
@@ -146,7 +156,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.accountId,
                 request.driverId,
                 request.vehicleId,
-                TripType = request.frequency,
+                Frequency = request.frequency,
                 TravelDate = currentTimeline.Date,
                 ETD = TripETD,
                 RTA = TripRTA,
@@ -166,7 +176,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 SecondaryDevice = request.secondaryDevices,
                 request.vehicleCategory,
                 request.routingModel,
-                request.routePath
+                request.routePath,
+                GeofenceJson = geofenceJson
             }, transaction);
 
             // 2. Insert into Det_Trip (Details)
@@ -236,6 +247,35 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             formats,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None);
+        }
+
+
+        public async Task<IEnumerable<TripPlanGeofenceDbResponseDTO>> GetGeofenceDetailsByPlanIdAsync(int planId)
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            connection.Open();
+            string sql = """
+            SELECT 
+                plan_id AS planId, 
+                geofence_id AS geofenceId, 
+                geofence_type AS geofenceType,
+                point_type AS pointType,
+                geofence_address AS geofenceAddress,
+                geo_center_latitude AS geofenceCenterLatitude,
+                geo_center_longitude AS geofenceCenterLongitude,
+                geo_radius AS geofenceRadius,
+                planned_entry_time AS plannedEntryTime,
+                planned_exit_time AS plannedExitTime,
+                sequence, 
+                distance, 
+                google_suggested_time AS googleSuggestedTime,
+                geofence_coordinates AS geofenceDetails
+            FROM "TMS"."Trip_Plan_Geofence_Details"
+            WHERE plan_id = @Id
+            ORDER BY sequence ASC
+            """;
+
+            return await connection.QueryAsync<TripPlanGeofenceDbResponseDTO>(sql, new { Id = planId });
         }
 
     }
