@@ -2,6 +2,7 @@ using FleetBharat.TMSService.Application.Filters;
 using FleetBharat.TMSService.Application.Interfaces;
 using FleetBharat.TMSService.Application.Services;
 using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
+using FleetBharat.TMSService.Infrastructure.ExternalServices;
 using FleetBharat.TMSService.Infrastructure.Repository.Implementation;
 using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Hangfire;
@@ -92,6 +93,14 @@ builder.Services.AddHttpClient<CommonApiClient>(client =>
 })
 .AddHttpMessageHandler<AuthHeaderHandler>();
 
+builder.Services.AddHttpClient("TripMappingClient", client =>
+{
+    client.BaseAddress = new Uri("http://66.116.224.155:8083/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddScoped<JavaServicesApiClient>();
+
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<GetServices>();
 builder.Services.AddScoped<DbLogger>();
@@ -103,6 +112,9 @@ builder.Services.AddScoped<ICreateTripService, CreateTripService>();
 builder.Services.AddScoped<ICreateTripRepository, CreateTripRepository>();
 builder.Services.AddScoped<ICurrentTripService, CurrentTripService>();
 builder.Services.AddScoped<ICurrentTripRepository, CurrentTripRepository>();
+
+builder.Services.AddScoped<ITripSyncService, TripSyncService>();
+builder.Services.AddScoped<ITripSyncRepository, TripSyncRepository>();
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -199,6 +211,12 @@ recurringJobManager.AddOrUpdate<CurrentTripService>(
     service => service.UpdateCurrentTripAndLegentIcon(),
     "*/3 * * * *" // every 3 minutes
 );
+
+//recurringJobManager.AddOrUpdate<ITripSyncService>(
+//    "sync-current-trips",
+//    service => service.SyncTripsAsync(),
+//    "*/5 * * * *" // every 5 minutes
+//);
 
 // ✅ Hangfire Dashboard
 app.UseHangfireDashboard("/hangfire", new DashboardOptions

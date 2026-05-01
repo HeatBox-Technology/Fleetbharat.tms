@@ -326,6 +326,15 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 request.routePath
             }, transaction);
 
+            //update trip no after trip generation
+
+            string tripNoSql = """
+                UPDATE "TMS"."Trans_Trip"
+                SET trip_no = @TripNo
+                WHERE trip_id = @TripId;
+                """;
+            await transaction.Connection.ExecuteAsync(tripNoSql, new { TripNo = $"TRIP-{transTripId}", TripId = transTripId }, transaction);
+
             // 2. Insert into Det_Trip (Details)
             string detSql = """
             INSERT INTO "TMS"."Det_Trip"
