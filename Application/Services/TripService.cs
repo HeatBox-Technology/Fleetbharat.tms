@@ -2,11 +2,14 @@ using FleetBharat.TMSService.Application.DTOs;
 using FleetBharat.TMSService.Application.Helper;
 using FleetBharat.TMSService.Domain.Entities.TMS;
 using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
+using FleetBharat.TMSService.Infrastructure.Repository.Implementation;
 using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Infrastructure.ExternalServices;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using System.Data;
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 
 public class TripService : ITripService
@@ -30,6 +33,15 @@ public class TripService : ITripService
         if (!validationResult.success)
             return validationResult;
 
+        //datetime and time validation 
+        foreach (var item in request.routeDetails)
+        {
+            if (!DatetimeHelper.TryParse(request.frequency, item.plannedEntryTime, out var entry))
+                throw new Exception($"Invalid PlannedEntryTime: {item.plannedEntryTime}");
+
+            if (!DatetimeHelper.TryParse(request.frequency, item.plannedExitTime, out var exit))
+                throw new Exception($"Invalid PlannedExitTime: {item.plannedExitTime}");
+        }
 
         using var connection = _dbConnectionFactory.CreateConnection();
         connection.Open();
@@ -60,6 +72,8 @@ public class TripService : ITripService
                 parsedTravelDate = date;
             }
 
+            
+
             // Convert Points → Segments
             var segments = ConvertToRouteDetails(request);
 
@@ -77,7 +91,7 @@ public class TripService : ITripService
 
             //Serialize Secondary Devices (JSONB)
             var secondaryDevicesJson = request.secondaryDevice?.Any() == true
-                ? JsonSerializer.Serialize(request.secondaryDevice)
+                ? JsonConvert.SerializeObject(request.secondaryDevice)
                 : "[]";
 
             //trip overlap check start
@@ -138,7 +152,14 @@ public class TripService : ITripService
                 IsOneTime(request.frequency),
                 baseDate);
 
-                await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, segments, TripETD, TripRTA, secondaryDevicesJson, transaction);
+                var geofenceList = request.routeDetails?.OrderBy(x => x.sequence).ToList();
+
+                // ✅ Convert to JSON
+                var geofenceJson = (geofenceList == null || !geofenceList.Any())
+                    ? "[]"
+                    : JsonConvert.SerializeObject(geofenceList);
+
+                await _tripPlanRepository.CreateTransAndDetTripAsync(planId, request, segments, TripETD, TripRTA, secondaryDevicesJson, geofenceJson, transaction);
             }
 
             transaction.Commit();
@@ -187,6 +208,9 @@ public class TripService : ITripService
         {
             if (string.IsNullOrWhiteSpace(request.weekDays))
                 return ApiResponse<int>.Fail("WeekDays required for recurring trips.", 400);
+
+            if (!TryValidateWeekDays(request.weekDays, out var parsedDays, out var error))
+                return ApiResponse<int>.Fail(error, 400);
         }
 
         // ✅ Fleet Validation
@@ -215,6 +239,53 @@ public class TripService : ITripService
         }
 
         return ApiResponse<int>.Ok(0);
+    }
+
+    private static bool TryValidateWeekDays(string input, out List<DayOfWeek> parsedDays, out string error)
+    {
+        parsedDays = new List<DayOfWeek>();
+        error = string.Empty;
+
+        var dayMap = new Dictionary<string, DayOfWeek>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "MONDAY", DayOfWeek.Monday },
+        { "TUESDAY", DayOfWeek.Tuesday },
+        { "WEDNESDAY", DayOfWeek.Wednesday },
+        { "THURSDAY", DayOfWeek.Thursday },
+        { "FRIDAY", DayOfWeek.Friday },
+        { "SATURDAY", DayOfWeek.Saturday },
+        { "SUNDAY", DayOfWeek.Sunday }
+    };
+
+        var days = input.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => x.Trim().ToUpper())
+                        .ToList();
+
+        if (!days.Any())
+        {
+            error = "At least one weekday is required.";
+            return false;
+        }
+
+        // duplicate check
+        if (days.Count != days.Distinct().Count())
+        {
+            error = "Duplicate weekdays are not allowed.";
+            return false;
+        }
+
+        foreach (var day in days)
+        {
+            if (!dayMap.ContainsKey(day))
+            {
+                error = $"Invalid weekday: {day}";
+                return false;
+            }
+
+            parsedDays.Add(dayMap[day]);
+        }
+
+        return true;
     }
 
     private bool OverlapOneTime(TripDbDTO a, TripDbDTO b)
@@ -683,7 +754,7 @@ public class TripService : ITripService
 
             // ✅ Serialize secondary devices
             var secondaryDevicesJson = request.secondaryDevice?.Any() == true
-                ? JsonSerializer.Serialize(request.secondaryDevice)
+                ? JsonConvert.SerializeObject(request.secondaryDevice)
                 : "[]";
 
             //trip overlap check start
@@ -757,6 +828,13 @@ public class TripService : ITripService
                     true,
                     baseDate);
 
+                var geofenceList = request.routeDetails?.OrderBy(x => x.sequence).ToList();
+
+                // ✅ Convert to JSON
+                var geofenceJson = (geofenceList == null || !geofenceList.Any())
+                    ? "[]"
+                    : JsonConvert.SerializeObject(geofenceList);
+
                 // ⚠️ Important: delete old trans trip before re-creating
                 //await _tripPlanRepository.DeleteTransTripByPlanIdAsync(request.planId, transaction);
 
@@ -766,7 +844,8 @@ public class TripService : ITripService
                     segments,
                     TripETD,
                     TripRTA,
-                    secondaryDevicesJson,
+                    secondaryDevicesJson, 
+                    geofenceJson,
                     transaction);
             }
 
@@ -788,7 +867,7 @@ public class TripService : ITripService
         {
             plan.secondaryDevice = string.IsNullOrEmpty(plan.secondaryDeviceJson)
             ? new List<string?>()
-            : JsonSerializer.Deserialize<List<string?>>(plan.secondaryDeviceJson);
+            : JsonConvert.DeserializeObject<List<string?>>(plan.secondaryDeviceJson);
 
             plan.travelDate = plan.travel_date.HasValue
             ? plan.travel_date.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
@@ -812,10 +891,7 @@ public class TripService : ITripService
             {
                 parsedDetails = string.IsNullOrWhiteSpace(geoDetails.geofenceDetails)
                     ? new List<GeofenceDetailsDTO>()
-                    : JsonSerializer.Deserialize<List<GeofenceDetailsDTO>>(
-                        geoDetails.geofenceDetails,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                      ) ?? new List<GeofenceDetailsDTO>();
+                    : JsonConvert.DeserializeObject<List<GeofenceDetailsDTO>>(geoDetails.geofenceDetails) ?? new List<GeofenceDetailsDTO>();
             }
             catch
             {

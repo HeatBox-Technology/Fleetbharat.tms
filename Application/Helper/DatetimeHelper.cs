@@ -12,7 +12,7 @@ namespace FleetBharat.TMSService.Application.Helper
         "M/d/yyyy",
         "yyyy-MM-dd",
         "yyyy/MM/dd"
-    };
+        };
 
         public static DateTime? ParseToDate(string inputDate, string[] inputFormats = null, CultureInfo culture = null)
         {
@@ -38,5 +38,51 @@ namespace FleetBharat.TMSService.Application.Helper
 
             return date?.ToString(outputFormat, culture);
         }
+
+
+        public static bool TryParse(string frequency, string value, out PlannedTime result)
+        {
+            result = new PlannedTime { Raw = value };
+
+            if (string.IsNullOrWhiteSpace(value))
+                return true;
+
+            if (frequency == "RECURRING")
+            {
+                if (DateTime.TryParseExact(
+                value,
+                "hh:mm tt",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var time))
+                {
+                    result.Time = time.TimeOfDay; // ✅ store as TimeSpan
+                    return true;
+                }
+
+                return false;
+            }
+
+            // ONE-TIME
+            if (DateTime.TryParseExact(value,
+                "dd/MM/yyyy hh:mm tt",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var dt))
+            {
+                result.DateTime = dt;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    public class PlannedTime
+    {
+        public string Raw { get; set; }
+
+        public TimeSpan? Time { get; set; }        // For RECURRING
+        public DateTime? DateTime { get; set; }    // For ONE-TIME
     }
 }

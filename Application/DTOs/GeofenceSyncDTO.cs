@@ -9,6 +9,6 @@
         public decimal longitude { get; set; }
         public int radius { get; set; }
         public string geoType { get; set; }
-        public List<GeoPointSyncDTO> GeoPoints { get; set; }
+        public List<GeoPointSyncDTO> geoPoints { get; set; }
     }
 }

@@ -31,6 +31,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Interfaces
         DateTime TripETD,
         DateTime TripRTA,
         string secondaryDevicesJson,
+        string geofenceJson,
         IDbTransaction transaction);
 
         Task<(IEnumerable<dynamic> Items, int Total, int TotalActive)> GetAllTripPlansAsync

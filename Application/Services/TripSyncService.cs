@@ -42,7 +42,7 @@ namespace FleetBharat.TMSService.Application.Services
                 {
                     tripId = row.trip_id,
                     tripName = row.trip_name,
-                    vehicleId = row.vehicle_no,
+                    vehicleId = Convert.ToString(row.vehicle_id),
                     vehicleNo = row.vehicle_no,
                     deviceNo = row.device_no,
                     orgId = row.account_id,
@@ -110,7 +110,7 @@ namespace FleetBharat.TMSService.Application.Services
                 var geo = new GeofenceSyncDTO
                 {
                     geoId = x.geofenceId.ToString(),
-                    geoName = x.geofenceId.ToString(), // adjust if name available
+                    geoName = x.geofenceAddress.ToString(),
                     pointType = x.pointType,
                     geoType = x.geofenceType,
 
@@ -119,19 +119,19 @@ namespace FleetBharat.TMSService.Application.Services
                     latitude = decimal.TryParse(x.geofenceCenterLatitude, out var lat) ? lat : 0,
                     longitude = decimal.TryParse(x.geofenceCenterLongitude, out var lng) ? lng : 0,
 
-                    GeoPoints = new List<GeoPointSyncDTO>()
+                    geoPoints = new List<GeoPointSyncDTO>()
                 };
 
                 //Handle polygon (if data comes later)
-                if (x.geofenceType == "POLYGON" && !string.IsNullOrEmpty(x.geofenceDetails))
+                if (x.geofenceType == "POLYGON" && x.geofenceDetails != null)
                 {
                     try
                     {
-                        geo.GeoPoints = JsonConvert.DeserializeObject<List<GeoPointSyncDTO>>(x.geofenceDetails);
+                        geo.geoPoints = JsonConvert.DeserializeObject<List<GeoPointSyncDTO>>(x.geofenceDetails.ToString());
                     }
                     catch
                     {
-                        geo.GeoPoints = new List<GeoPointSyncDTO>();
+                        geo.geoPoints = new List<GeoPointSyncDTO>();
                     }
                 }
 

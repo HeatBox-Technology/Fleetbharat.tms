@@ -21,6 +21,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             SELECT 
                 trip_id,
                 trip_no as trip_name,
+                vehicle_id,
                 vehicle_no,
                 primary_device as device_no,
                 account_id,

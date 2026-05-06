@@ -4,6 +4,7 @@ using FleetBharat.TMSService.Infrastructure.Repository.Interfaces;
 using Hangfire;
 using Newtonsoft.Json;
 using System.Collections;
+using System.Globalization;
 
 namespace FleetBharat.TMSService.Application.Services
 {
@@ -43,9 +44,21 @@ namespace FleetBharat.TMSService.Application.Services
                     if (days == null || !days.Contains(today.DayOfWeek.ToString().ToUpper()))
                         continue;
 
-                    var plannedStart = today.Add(TimeSpan.Parse(trip.plannedStartTime));
+                    //var plannedStart = today.Add(TimeSpan.Parse(trip.plannedStartTime));
+                    var plannedStart = today.Add(
+                                        DateTime.ParseExact(
+                                            trip.plannedStartTime,
+                                            "hh:mm tt",
+                                            CultureInfo.InvariantCulture
+                                        ).TimeOfDay);
+
                     var googelSuggestedEnd = plannedStart.AddMinutes(trip.googleSuggestedTime);
-                    var plannedEnd = googelSuggestedEnd.Date.Add(TimeSpan.Parse(trip.plannedEndTime));
+                    var plannedEnd = googelSuggestedEnd.Date.Add(
+                                        DateTime.ParseExact(
+                                            trip.plannedEndTime,
+                                            "hh:mm tt",
+                                            CultureInfo.InvariantCulture
+                                        ).TimeOfDay);
 
                     var exists = await _createTripRepository.TripExistsAsync(
                     transaction,
@@ -64,9 +77,18 @@ namespace FleetBharat.TMSService.Application.Services
 
                         foreach (var route in routeDetails)
                         {
-                            var segment_etd = today.Add(TimeSpan.Parse(route.fromExitTime));
+                            var segment_etd = today.Add(
+                                        DateTime.ParseExact(
+                                            route.fromExitTime,
+                                            "hh:mm tt",
+                                            CultureInfo.InvariantCulture
+                                        ).TimeOfDay);
                             var segment_eta = segment_etd.AddMinutes(trip.googleSuggestedTime);
-                            var segment_rta = googelSuggestedEnd.Date.Add(TimeSpan.Parse(route.toEntryTime));
+                            var segment_rta = googelSuggestedEnd.Date.Add(DateTime.ParseExact(
+                                            route.toEntryTime,
+                                            "hh:mm tt",
+                                            CultureInfo.InvariantCulture
+                                        ).TimeOfDay);
 
                             route.fromExitTime = segment_etd.ToString();
                             route.toEntryTime = segment_rta.ToString();

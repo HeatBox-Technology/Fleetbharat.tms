@@ -1,4 +1,6 @@
 ﻿using FleetBharat.TMSService.Application.DTOs;
+using Newtonsoft.Json;
+using System.Text;
 
 namespace FleetBharat.TMSService.Infrastructure.ExternalServices
 {
@@ -17,9 +19,13 @@ namespace FleetBharat.TMSService.Infrastructure.ExternalServices
         {
             var client = _httpClientFactory.CreateClient("TripMappingClient");
 
-            var response = await client.PostAsJsonAsync(
+            var json = JsonConvert.SerializeObject(trips);
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await client.PostAsync(
                 "api/v1/mapping/trip-mapping",
-                trips,
+                content,
                 ct
             );
 

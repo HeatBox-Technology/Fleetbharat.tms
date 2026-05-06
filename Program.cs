@@ -1,5 +1,6 @@
 using FleetBharat.TMSService.Application.Filters;
 using FleetBharat.TMSService.Application.Interfaces;
+using FleetBharat.TMSService.Application.Options;
 using FleetBharat.TMSService.Application.Services;
 using FleetBharat.TMSService.Infrastructure.ConnectionFactory;
 using FleetBharat.TMSService.Infrastructure.ExternalServices;
@@ -24,6 +25,20 @@ builder.Services.AddHangfire(config =>
 
 builder.Services.AddHangfireServer();
 
+// ✅ Bind Kafka config
+builder.Services.Configure<KafkaRealtimeOptions>(
+    builder.Configuration.GetSection(KafkaRealtimeOptions.SectionName));
+
+// ✅ Register services
+builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<ITripAlertRepository, TripAlertRepository>();
+// ✅ Conditionally start Kafka consumer
+var isKafkaEnabled = builder.Configuration.GetValue<bool>("HostedServices:KafkaRealtimeConsumer");
+
+if (isKafkaEnabled)
+{
+    builder.Services.AddHostedService<KafkaAlertConsumerWorker>();
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -211,6 +226,8 @@ recurringJobManager.AddOrUpdate<CurrentTripService>(
     service => service.UpdateCurrentTripAndLegentIcon(),
     "*/3 * * * *" // every 3 minutes
 );
+
+
 
 //recurringJobManager.AddOrUpdate<ITripSyncService>(
 //    "sync-current-trips",

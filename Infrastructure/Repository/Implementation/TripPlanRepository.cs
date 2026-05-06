@@ -263,6 +263,7 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
         DateTime TripETD,
         DateTime TripRTA,
         string secondaryDevicesJson,
+        string geofenceJson,
         IDbTransaction transaction)
         {
             // 1. Insert into Trans_Trip (Master)
@@ -275,7 +276,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             driver_name, vehicle_no, driver_phone,
             start_geo_id, end_geo_id, created_by,
             trip_type,primary_device, consignee, consignor,
-            secondary_devices, vehicle_category, routing_model, route_path
+            secondary_devices, vehicle_category, routing_model, route_path,
+            geofence_json
             )
             VALUES
             (
@@ -286,7 +288,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
             @StartGeoId, @EndGeoId, @CreatedBy,
             @TripType, @PrimaryDevice, @Consignee, @Consignor,
             @SecondaryDevice::jsonb, 
-            @VehicleCategory, @RoutingModel, @RoutePath
+            @VehicleCategory, @RoutingModel, @RoutePath,
+            @GeofenceJson::jsonb
             )
             RETURNING trip_id;
             """;
@@ -323,7 +326,8 @@ namespace FleetBharat.TMSService.Infrastructure.Repository.Implementation
                 SecondaryDevice=secondaryDevicesJson,
                 request.vehicleCategory,
                 request.routingModel,
-                request.routePath
+                request.routePath,
+                GeofenceJson = geofenceJson
             }, transaction);
 
             //update trip no after trip generation

@@ -18,15 +18,9 @@ namespace FleetBharat.TMSService.Controller
         [HttpPost]
         public async Task<IActionResult> CreateTripPlan([FromBody] TripPlanRequestDTO request)
         {
-            try
-            {
+
                 var response = await _service.CreateTripPlanAsync(request);
-                return (Ok(response));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, ApiResponse<int>.Fail(ex.Message, StatusCodes.Status500InternalServerError));
-            }
+                return (Ok(response));    
             
         }
 
