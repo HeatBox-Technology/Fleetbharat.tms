@@ -152,15 +152,85 @@ namespace FleetBharat.TMSService.Application.Services
             return result;
         }
 
-        public async Task<RouteListUiResponseDto> GetRoutesByAccountAsync(int accountId, int page = 1, int pageSize = 20)
+        public async Task<RouteListUiResponseDto> GetRoutesByAccountAsync
+        (int accountId, 
+        int page = 1, 
+        int pageSize = 20, 
+        string? searchBy = null,
+        string? searchValue = null)
         {
             var query = _db.Routes.AsNoTracking().Where(r => r.AccountId == accountId);
+
+            // Fetch geofences and accounts once
+            var geofences = await _commonApi.GetGeofencesAsync(accountId, 100) ?? new List<CommonResponseDTO>();
+            var accounts = await _commonApi.GetAccountsAsync(200) ?? new List<CommonResponseDTO>();
+
+            // Apply search filter
+            if (!string.IsNullOrWhiteSpace(searchBy) &&
+                !string.IsNullOrWhiteSpace(searchValue))
+            {
+                searchBy = searchBy.Trim().ToLower();
+                searchValue = searchValue.Trim().ToLower();
+
+                switch (searchBy)
+                {
+                    case "routename":
+
+                        query = query.Where(r =>
+                            r.RouteName != null &&
+                            r.RouteName.ToLower().Contains(searchValue));
+
+                        break;
+
+                    case "accountname":
+
+                        var matchedAccountIds = accounts
+                            .Where(a =>
+                                !string.IsNullOrEmpty(a.value) &&
+                                a.value.ToLower().Contains(searchValue))
+                            .Select(a => a.id)
+                            .ToList();
+
+                        query = query.Where(r =>
+                            matchedAccountIds.Contains(r.AccountId));
+
+                        break;
+
+                    case "startgeoname":
+
+                        var matchedStartGeoIds = geofences
+                            .Where(g =>
+                                !string.IsNullOrEmpty(g.value) &&
+                                g.value.ToLower().Contains(searchValue))
+                            .Select(g => g.id)
+                            .ToList();
+
+                        query = query.Where(r =>
+                            matchedStartGeoIds.Contains(r.StartGeoId));
+
+                        break;
+
+                    case "endgeoname":
+
+                        var matchedEndGeoIds = geofences
+                            .Where(g =>
+                                !string.IsNullOrEmpty(g.value) &&
+                                g.value.ToLower().Contains(searchValue))
+                            .Select(g => g.id)
+                            .ToList();
+
+                        query = query.Where(r =>
+                            matchedEndGeoIds.Contains(r.EndGeoId));
+
+                        break;
+                }
+            }
 
             var total = await query.CountAsync();
 
             // get paged routes
             var routes = await query
-                .OrderBy(r => r.RouteId)
+                .OrderByDescending(r => r.RouteId)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -168,8 +238,9 @@ namespace FleetBharat.TMSService.Application.Services
             var response = new RouteListUiResponseDto();
 
             response.Summary.TotalRoutes = total;
-            response.Summary.TotalActiveRoutes = await _db.Routes.AsNoTracking().Where(r => r.AccountId == accountId && r.IsActive == true).CountAsync();
+            response.Summary.TotalActiveRoutes = await query.Where(r => r.IsActive == true).CountAsync();
             response.Summary.TotalInactiveRoutes = total - response.Summary.TotalActiveRoutes;
+
 
             if (routes == null || routes.Count == 0)
             {
@@ -193,9 +264,7 @@ namespace FleetBharat.TMSService.Application.Services
                 .OrderBy(s => s.Sequence)
                 .ToListAsync();
 
-            // Fetch geofences and accounts once
-            var geofences = await _commonApi.GetGeofencesAsync(accountId, 100) ?? new List<CommonResponseDTO>();
-            var accounts = await _commonApi.GetAccountsAsync(200) ?? new List<CommonResponseDTO>();
+           
 
             var stopsByRoute = stops.GroupBy(s => s.RouteId)
                 .ToDictionary(g => g.Key, g => g.Select(s => new StopDetailsDTO
