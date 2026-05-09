@@ -122,6 +122,8 @@ builder.Services.AddScoped<DbLogger>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<ITripPlanRepository, TripPlanRepository>();
+builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 builder.Services.AddScoped<ICreateTripService, CreateTripService>();
 builder.Services.AddScoped<ICreateTripRepository, CreateTripRepository>();
