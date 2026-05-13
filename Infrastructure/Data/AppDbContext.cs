@@ -20,5 +20,9 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        modelBuilder.Entity<RouteMaster>()
+            .Property(r => r.IsDeleted)
+            .HasDefaultValue(false);
     }
 }

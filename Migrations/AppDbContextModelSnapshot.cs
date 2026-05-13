@@ -54,7 +54,7 @@ namespace FleetBharat.TMSService.Migrations
 
                     b.HasKey("id");
 
-                    b.ToTable("error_logs");
+                    b.ToTable("error_logs", (string)null);
                 });
 
             modelBuilder.Entity("Trip", b =>
@@ -83,7 +83,7 @@ namespace FleetBharat.TMSService.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Trips");
+                    b.ToTable("Trips", (string)null);
                 });
 #pragma warning restore 612, 618
         }

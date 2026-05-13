@@ -20,6 +20,7 @@
         // Number of stops for the route
         public int stopCount { get; set; }
         public Guid? createdBy { get; set; }
+        public string? createdDateTime { get; set; }
         public bool isActive { get; set; }
     }
 }

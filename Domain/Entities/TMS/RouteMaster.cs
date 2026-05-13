@@ -38,6 +38,9 @@ namespace FleetBharat.TMSService.Domain.Entities.TMS
         [Column("is_active")]
         public bool IsActive { get; set; }
 
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; } = false;
+
         [Column("created_by")]
         public Guid? CreatedBy { get; set; }
 

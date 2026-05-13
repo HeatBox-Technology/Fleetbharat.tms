@@ -32,7 +32,7 @@ namespace FleetBharat.TMSService.Application.Services
             {
                 if (route.routeId > 0)
                 {
-                    var existing = await _db.Routes.FirstOrDefaultAsync(r => r.RouteId == route.routeId);
+                    var existing = await _db.Routes.FirstOrDefaultAsync(r => r.RouteId == route.routeId && !r.IsDeleted);
                     if (existing == null) throw new KeyNotFoundException("Route not found.");
 
                     existing.RouteName = route.routeName;
@@ -118,7 +118,7 @@ namespace FleetBharat.TMSService.Application.Services
 
         public async Task<RouteRequestDTO?> GetRouteAsync(int id)
         {
-            var route = await _db.Routes.AsNoTracking().FirstOrDefaultAsync(r => r.RouteId == id);
+            var route = await _db.Routes.AsNoTracking().FirstOrDefaultAsync(r => r.RouteId == id && !r.IsDeleted);
             if (route == null) return null;
 
             var stops = await _db.RouteStops.AsNoTracking()
@@ -159,7 +159,7 @@ namespace FleetBharat.TMSService.Application.Services
         string? searchBy = null,
         string? searchValue = null)
         {
-            var query = _db.Routes.AsNoTracking().Where(r => r.AccountId == accountId);
+            var query = _db.Routes.AsNoTracking().Where(r => r.AccountId == accountId && !r.IsDeleted);
 
             // Fetch geofences and accounts once
             var geofences = await _commonApi.GetGeofencesAsync(accountId, 100) ?? new List<CommonResponseDTO>();
@@ -293,6 +293,7 @@ namespace FleetBharat.TMSService.Application.Services
                 stopDetails = stopsByRoute.ContainsKey(route.RouteId) ? stopsByRoute[route.RouteId] : new List<StopDetailsDTO>(),
                 stopCount= stopsByRoute.ContainsKey(route.RouteId) ? (stopsByRoute[route.RouteId].Count-1): 0,
                 createdBy = route.CreatedBy,
+                createdDateTime = route.CreatedDatetime?.ToString("dd'/'MM'/'yyyy HH':'mm"),
                 isActive = route.IsActive
             }).ToList();
 
@@ -308,10 +309,25 @@ namespace FleetBharat.TMSService.Application.Services
             return response;
         }
 
+        public async Task<ApiResponse<string>> DeleteRouteAsync(int routeId)
+        {
+            var existing = await _db.Routes.FirstOrDefaultAsync(r => r.RouteId == routeId && !r.IsDeleted);
+            if (existing == null)
+                throw new KeyNotFoundException("Route not found.");
+
+            existing.IsDeleted = true;
+            existing.IsActive = false;
+            existing.UpdatedDatetime = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return ApiResponse<string>.Ok("Route deleted successfully", "Route deleted successfully");
+        }
+
         public async Task<ApiResponse<List<DropdownDto>>> GetRouteDropdown(int accountId)
         {
             var routes = await _db.Routes.AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.IsActive)
+                .Where(x => x.AccountId == accountId && x.IsActive && !x.IsDeleted)
                 .OrderBy(x => x.RouteName)
                 .Select(x => new DropdownDto
                 {

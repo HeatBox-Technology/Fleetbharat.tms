@@ -82,5 +82,23 @@ namespace FleetBharat.TMSService.Controller
             return StatusCode(response.statusCode, response);
         }
 
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteRoute(int id)
+        {
+            try
+            {
+                var response = await _routeService.DeleteRouteAsync(id);
+                return StatusCode(response.statusCode, response);
+            }
+            catch (KeyNotFoundException knf)
+            {
+                return NotFound(ApiResponse<string>.Fail(knf.Message, StatusCodes.Status404NotFound));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ApiResponse<string>.Fail(ex.Message, StatusCodes.Status500InternalServerError));
+            }
+        }
+
      }
 }
