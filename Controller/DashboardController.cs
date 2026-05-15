@@ -16,9 +16,14 @@ namespace FleetBharat.TMSService.Controller
         }
 
         [HttpGet("trip")]
-        public async Task<IActionResult> GetTripDashboard()
+        public async Task<IActionResult> GetTripDashboard([FromQuery] int accountId)
         {
-            var dashboard = await _dashboardService.GetTripDashboardAsync();
+            if (accountId <= 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("accountId is required.", 400));
+            }
+
+            var dashboard = await _dashboardService.GetTripDashboardAsync(accountId);
             return Ok(ApiResponse<TripDashboardDto>.Ok(dashboard, "Trip dashboard data retrieved successfully."));
         }
     }

@@ -13,9 +13,9 @@ namespace FleetBharat.TMSService.Application.Services
             _dashboardRepository = dashboardRepository;
         }
 
-        public Task<TripDashboardDto> GetTripDashboardAsync()
+        public Task<TripDashboardDto> GetTripDashboardAsync(int accountId)
         {
-            return _dashboardRepository.GetTripDashboardAsync();
+            return _dashboardRepository.GetTripDashboardAsync(accountId);
         }
     }
 }

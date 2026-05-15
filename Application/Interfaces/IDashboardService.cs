@@ -4,6 +4,6 @@ namespace FleetBharat.TMSService.Application.Interfaces
 {
     public interface IDashboardService
     {
-        Task<TripDashboardDto> GetTripDashboardAsync();
+        Task<TripDashboardDto> GetTripDashboardAsync(int accountId);
     }
 }

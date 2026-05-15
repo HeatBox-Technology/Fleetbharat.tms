@@ -32,6 +32,12 @@ namespace FleetBharat.TMSService.Application.DTOs
         public int progressPercent { get; set; }
         public string progressColor { get; set; } = string.Empty;
         public string statusLabel { get; set; } = string.Empty;
+        public string atd { get; set; } = string.Empty;
+        public string ata { get; set; } = string.Empty;
+        public string startInDatetime { get; set; } = string.Empty;
+        public string startOutDatetime { get; set; } = string.Empty;
+        public string endInDatetime { get; set; } = string.Empty;
+        public string endOutDatetime { get; set; } = string.Empty;
     }
 
     public class TripTelemetryDto
