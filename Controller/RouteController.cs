@@ -62,11 +62,11 @@ namespace FleetBharat.TMSService.Controller
         }
 
         [HttpGet("all/{accountId}")]
-        public async Task<IActionResult> GetRoutesByAccount(int accountId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? searchBy = null, [FromQuery]string? searchValue = null)
+        public async Task<IActionResult> GetRoutesByAccount(int accountId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery]string? search = null)
         {
             try
             {
-                var result = await _routeService.GetRoutesByAccountAsync(accountId, page, pageSize, searchBy, searchValue);
+                var result = await _routeService.GetRoutesByAccountAsync(accountId, page, pageSize, search);
                 return Ok(ApiResponse<RouteListUiResponseDto>.Ok(result));
             }
             catch (Exception ex)

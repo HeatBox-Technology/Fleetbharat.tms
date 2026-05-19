@@ -8,7 +8,7 @@ namespace FleetBharat.TMSService.Application.Interfaces
 
         Task<RouteRequestDTO?> GetRouteAsync(int id);
         
-        Task<RouteListUiResponseDto> GetRoutesByAccountAsync(int accountId, int page = 1, int pageSize = 20, string? searchBy = null, string? searchValue = null);
+        Task<RouteListUiResponseDto> GetRoutesByAccountAsync(int accountId, int page = 1, int pageSize = 20, string? search = null);
 
         Task<ApiResponse<string>> DeleteRouteAsync(int routeId);
 

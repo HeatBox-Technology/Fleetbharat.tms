@@ -4,6 +4,7 @@ using FleetBharat.TMSService.Domain.Entities.TMS;
 using Infrastructure.ExternalServices;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -156,8 +157,7 @@ namespace FleetBharat.TMSService.Application.Services
         (int accountId, 
         int page = 1, 
         int pageSize = 20, 
-        string? searchBy = null,
-        string? searchValue = null)
+        string? search = null)
         {
             var query = _db.Routes.AsNoTracking().Where(r => r.AccountId == accountId && !r.IsDeleted);
 
@@ -166,64 +166,41 @@ namespace FleetBharat.TMSService.Application.Services
             var accounts = await _commonApi.GetAccountsAsync(200) ?? new List<CommonResponseDTO>();
 
             // Apply search filter
-            if (!string.IsNullOrWhiteSpace(searchBy) &&
-                !string.IsNullOrWhiteSpace(searchValue))
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                searchBy = searchBy.Trim().ToLower();
-                searchValue = searchValue.Trim().ToLower();
+                search = search.Trim().ToLower();
 
-                switch (searchBy)
-                {
-                    case "routename":
+                // Match account names
+                var matchedAccountIds = accounts
+                    .Where(a =>
+                        !string.IsNullOrEmpty(a.value) &&
+                        a.value.ToLower().Contains(search))
+                    .Select(a => a.id)
+                    .ToList();
 
-                        query = query.Where(r =>
-                            r.RouteName != null &&
-                            r.RouteName.ToLower().Contains(searchValue));
+                // Match geo names
+                var matchedGeoIds = geofences
+                    .Where(g =>
+                        !string.IsNullOrEmpty(g.value) &&
+                        g.value.ToLower().Contains(search))
+                    .Select(g => g.id)
+                    .ToList();
 
-                        break;
+                query = query.Where(r =>
 
-                    case "accountname":
+                    // Route Name
+                    (r.RouteName != null &&
+                     r.RouteName.ToLower().Contains(search))
 
-                        var matchedAccountIds = accounts
-                            .Where(a =>
-                                !string.IsNullOrEmpty(a.value) &&
-                                a.value.ToLower().Contains(searchValue))
-                            .Select(a => a.id)
-                            .ToList();
+                    // Account Name
+                    || matchedAccountIds.Contains(r.AccountId)
 
-                        query = query.Where(r =>
-                            matchedAccountIds.Contains(r.AccountId));
+                    // Start Geo Name
+                    || matchedGeoIds.Contains(r.StartGeoId)
 
-                        break;
-
-                    case "startgeoname":
-
-                        var matchedStartGeoIds = geofences
-                            .Where(g =>
-                                !string.IsNullOrEmpty(g.value) &&
-                                g.value.ToLower().Contains(searchValue))
-                            .Select(g => g.id)
-                            .ToList();
-
-                        query = query.Where(r =>
-                            matchedStartGeoIds.Contains(r.StartGeoId));
-
-                        break;
-
-                    case "endgeoname":
-
-                        var matchedEndGeoIds = geofences
-                            .Where(g =>
-                                !string.IsNullOrEmpty(g.value) &&
-                                g.value.ToLower().Contains(searchValue))
-                            .Select(g => g.id)
-                            .ToList();
-
-                        query = query.Where(r =>
-                            matchedEndGeoIds.Contains(r.EndGeoId));
-
-                        break;
-                }
+                    // End Geo Name
+                    || matchedGeoIds.Contains(r.EndGeoId)
+                );
             }
 
             var total = await query.CountAsync();
