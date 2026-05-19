@@ -9,6 +9,7 @@
         public string? driverName { get; set; }
         public int vehicleId { get; set; }
         public string? vehicleNo { get; set; }
+        public string? primaryDeviceNumber { get; set; }
         public string tripType { get; set; }
         public string travelDate { get; set; } // Formatted as dd/MM/yyyy
         public string plannedStartTime { get; set; }
@@ -16,6 +17,9 @@
         public string plannedEndTime { get; set; }
         public int routeId { get; set; }
         public string routeName { get; set; } // Joined from Route table
+        public string? travelDays { get; set; }
+        public int? consignee { get; set; }
+        public int? consignor { get; set; }
         public int startGeoId { get; set; }
         public string startGeoName { get; set; }
         public int endGeoId { get; set; }
